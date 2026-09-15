@@ -47,11 +47,20 @@ func TestDeductConsumesReservedStock(t *testing.T) {
 	if _, e := s.Reserve("o", "w", "sku", StockOperationInput{Quantity: 3, IdempotencyKey: "v"}); e != nil {
 		t.Fatal(e)
 	}
-	v, e := s.Deduct("o", "w", "sku", StockOperationInput{Quantity: 2, IdempotencyKey: "d"})
+	v, e := s.ConsumeReserved("o", "w", "sku", StockOperationInput{Quantity: 2, IdempotencyKey: "d"})
 	if e != nil {
 		t.Fatal(e)
 	}
 	if v.OnHand != 3 || v.Reserved != 1 || v.Available != 2 {
 		t.Fatalf("unexpected stock: %+v", v)
+	}
+}
+
+func TestDeductCannotUseReservedStock(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	_, _ = s.Receive("o", "w", "sku", StockOperationInput{Quantity: 5, IdempotencyKey: "r"})
+	_, _ = s.Reserve("o", "w", "sku", StockOperationInput{Quantity: 4, IdempotencyKey: "v"})
+	if _, err := s.Deduct("o", "w", "sku", StockOperationInput{Quantity: 2, IdempotencyKey: "d"}); err != ErrInsufficient {
+		t.Fatalf("expected insufficient available stock, got %v", err)
 	}
 }

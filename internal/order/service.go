@@ -82,7 +82,7 @@ func (s *Service) Confirm(org, id string) (Order, error) {
 		return Order{}, ErrInvalidInput
 	}
 	for i, l := range v.Lines {
-		if _, e = s.inventory.Deduct(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":deduct:" + fmt.Sprint(i)}); e != nil {
+		if _, e = s.inventory.ConsumeReserved(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":deduct:" + fmt.Sprint(i)}); e != nil {
 			return Order{}, e
 		}
 	}

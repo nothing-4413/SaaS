@@ -57,13 +57,16 @@ func (s *Service) apply(org, warehouse, sku, action string, in StockOperationInp
 		}
 		v.Reserved -= in.Quantity
 	case "deduct":
-		if v.OnHand < in.Quantity {
+		if v.OnHand-v.Reserved < in.Quantity {
 			return Stock{}, ErrInsufficient
 		}
 		v.OnHand -= in.Quantity
-		if v.Reserved >= in.Quantity {
-			v.Reserved -= in.Quantity
+	case "consume_reserved":
+		if v.Reserved < in.Quantity {
+			return Stock{}, ErrInsufficient
 		}
+		v.OnHand -= in.Quantity
+		v.Reserved -= in.Quantity
 	default:
 		return Stock{}, ErrInvalidInput
 	}
@@ -86,6 +89,9 @@ func (s *Service) Release(org, warehouse, sku string, in StockOperationInput) (S
 }
 func (s *Service) Deduct(org, warehouse, sku string, in StockOperationInput) (Stock, error) {
 	return s.apply(org, warehouse, sku, "deduct", in)
+}
+func (s *Service) ConsumeReserved(org, warehouse, sku string, in StockOperationInput) (Stock, error) {
+	return s.apply(org, warehouse, sku, "consume_reserved", in)
 }
 
 func (s *Service) CreateReceipt(org string, in DocumentInput) (Document, error) {
