@@ -58,6 +58,12 @@ go run ./cmd/api
 
 `internal/notification` 基于 Outbox 执行器发送订单等业务事件。`DispatchOnce` 会批量领取事件，发送成功后标记 `published`，发送失败则进入退避重试；发送器由业务侧注入，可接邮件、短信、Webhook 或消息队列。
 
+## 权限中间件与 API 文档
+
+`auth.RequirePermission` 可包裹任意 HTTP handler，通过 `X-Organization-ID` 和 `X-User-ID` 解析当前身份并执行组织级权限校验；缺少身份返回 401，跨组织或无权限返回 403。
+
+完整接口草案见 [docs/openapi.yaml](docs/openapi.yaml)。
+
 ## Outbox 与审计基础
 
 `internal/outbox` 提供事件入队、幂等去重、批量领取、成功确认和失败重试。事件达到最大尝试次数后进入终态 `failed`，不会再次被领取；非终态失败使用递增退避时间。

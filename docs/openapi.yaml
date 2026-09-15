@@ -1,0 +1,76 @@
+openapi: 3.0.3
+info:
+  title: Multi-tenant Inventory and Order SaaS API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /organizations:
+    post:
+      summary: Create organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrganization' }
+      responses: { '201': { description: Created } }
+  /organizations/{organizationId}/orders:
+    parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+    get:
+      summary: List orders
+      responses: { '200': { description: Order list } }
+    post:
+      summary: Create order and reserve stock
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateOrder' }
+      responses: { '201': { description: Created }, '409': { description: Insufficient stock or conflict } }
+  /organizations/{organizationId}/orders/{orderId}/confirm:
+    post:
+      summary: Confirm order and deduct reserved stock
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/OrderId' }
+      responses: { '200': { description: Confirmed } }
+  /organizations/{organizationId}/orders/{orderId}/cancel:
+    post:
+      summary: Cancel order and release reserved stock
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/OrderId' }
+      responses: { '200': { description: Cancelled } }
+  /organizations/{organizationId}/reports/summary:
+    get:
+      summary: Get tenant business summary
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - name: low_stock_threshold
+          in: query
+          schema: { type: integer, format: int64, minimum: 0, default: 0 }
+      responses: { '200': { description: Summary } }
+components:
+  parameters:
+    OrganizationId: { name: organizationId, in: path, required: true, schema: { type: string } }
+    OrderId: { name: orderId, in: path, required: true, schema: { type: string } }
+  schemas:
+    CreateOrganization:
+      type: object
+      required: [name]
+      properties: { name: { type: string } }
+    CreateOrder:
+      type: object
+      required: [idempotency_key, lines]
+      properties:
+        idempotency_key: { type: string }
+        lines:
+          type: array
+          items:
+            type: object
+            required: [warehouse_id, sku_id, quantity, unit_price_cents]
+            properties:
+              warehouse_id: { type: string }
+              sku_id: { type: string }
+              quantity: { type: integer, format: int64, minimum: 1 }
+              unit_price_cents: { type: integer, format: int64, minimum: 0 }
