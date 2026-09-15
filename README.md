@@ -28,3 +28,12 @@ go run ./cmd/api
 - `POST .../stock/deduct` 扣减库存
 
 库存变更在服务层使用互斥锁保证并发安全；相同组织下重复使用同一幂等键不会重复变更库存，参数不一致会返回冲突。
+
+## 销售订单 API
+
+- `POST /organizations/{id}/orders` 创建订单并批量预占库存
+- `GET /organizations/{id}/orders` 查询订单
+- `POST /organizations/{id}/orders/{orderId}/confirm` 确认订单并扣减已预占库存
+- `POST /organizations/{id}/orders/{orderId}/cancel` 取消订单并释放预占库存
+
+订单创建失败时会补偿释放此前已经成功预占的明细；相同订单幂等键重复提交会返回原订单。

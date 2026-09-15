@@ -1,0 +1,114 @@
+package order
+
+import (
+	"fmt"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/nothing-4413/saas/internal/inventory"
+)
+
+type Service struct {
+	store     Store
+	inventory *inventory.Service
+	now       func() time.Time
+	seq       uint64
+	mu        sync.Mutex
+}
+
+func NewService(store Store, inv *inventory.Service) *Service {
+	return &Service{store: store, inventory: inv, now: time.Now}
+}
+func (s *Service) id() string {
+	return fmt.Sprintf("%d-%d", s.now().UnixNano(), atomic.AddUint64(&s.seq, 1))
+}
+func (s *Service) Create(org string, in CreateInput) (Order, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if strings.TrimSpace(org) == "" || strings.TrimSpace(in.IdempotencyKey) == "" || len(in.Lines) == 0 {
+		return Order{}, ErrInvalidInput
+	}
+	if old, e := s.store.FindByKey(org, in.IdempotencyKey); e == nil {
+		return old, nil
+	}
+	total := int64(0)
+	for _, l := range in.Lines {
+		if strings.TrimSpace(l.SKUID) == "" || strings.TrimSpace(l.WarehouseID) == "" || l.Quantity <= 0 || l.UnitPriceCents < 0 {
+			return Order{}, ErrInvalidInput
+		}
+		total += l.Quantity * l.UnitPriceCents
+	}
+	id := s.id()
+	reserved := 0
+	for i, l := range in.Lines {
+		_, e := s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":reserve:" + fmt.Sprint(i)})
+		if e != nil {
+			for j := 0; j < reserved; j++ {
+				p := in.Lines[j]
+				_, _ = s.inventory.Release(org, p.WarehouseID, p.SKUID, inventory.StockOperationInput{Quantity: p.Quantity, IdempotencyKey: id + ":rollback:" + fmt.Sprint(j)})
+			}
+			return Order{}, e
+		}
+		reserved++
+	}
+	now := s.now().UTC()
+	v := Order{ID: id, OrganizationID: org, IdempotencyKey: in.IdempotencyKey, Status: StatusPending, Lines: append([]Line(nil), in.Lines...), TotalCents: total, CreatedAt: now, UpdatedAt: now}
+	if e := s.store.Create(v); e != nil {
+		return Order{}, e
+	}
+	return v, nil
+}
+func (s *Service) Get(org, id string) (Order, error) {
+	v, e := s.store.Get(id)
+	if e != nil || v.OrganizationID != org {
+		return Order{}, ErrNotFound
+	}
+	return v, nil
+}
+func (s *Service) List(org string) []Order { return s.store.List(org) }
+func (s *Service) Confirm(org, id string) (Order, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, e := s.Get(org, id)
+	if e != nil {
+		return Order{}, e
+	}
+	if v.Status == StatusConfirmed {
+		return v, nil
+	}
+	if v.Status == StatusCancelled {
+		return Order{}, ErrInvalidInput
+	}
+	for i, l := range v.Lines {
+		if _, e = s.inventory.Deduct(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":deduct:" + fmt.Sprint(i)}); e != nil {
+			return Order{}, e
+		}
+	}
+	v.Status = StatusConfirmed
+	v.UpdatedAt = s.now().UTC()
+	return v, s.store.Put(v)
+}
+func (s *Service) Cancel(org, id string) (Order, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, e := s.Get(org, id)
+	if e != nil {
+		return Order{}, e
+	}
+	if v.Status == StatusCancelled {
+		return v, nil
+	}
+	if v.Status == StatusConfirmed {
+		return Order{}, ErrInvalidInput
+	}
+	for i, l := range v.Lines {
+		if _, e = s.inventory.Release(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":cancel:" + fmt.Sprint(i)}); e != nil {
+			return Order{}, e
+		}
+	}
+	v.Status = StatusCancelled
+	v.UpdatedAt = s.now().UTC()
+	return v, s.store.Put(v)
+}
