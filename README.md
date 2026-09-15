@@ -43,3 +43,9 @@ go run ./cmd/api
 `internal/outbox` 提供事件入队、幂等去重、批量领取、成功确认和失败重试。事件达到最大尝试次数后进入终态 `failed`，不会再次被领取；非终态失败使用递增退避时间。
 
 `internal/audit` 提供组织级审计记录模型和存储接口，记录操作者、动作、资源和扩展元数据，查询时按组织隔离。
+
+## PostgreSQL 迁移
+
+`migrations/000001_initial_schema.up.sql` 定义第一版持久化结构，覆盖租户、权限、商品、仓库、库存、订单、Outbox 和审计日志。库存表通过 `CHECK (reserved <= on_hand)` 保证预占量不会超过现有库存；订单和 Outbox 使用组织范围内的幂等唯一约束。
+
+迁移文件兼容 golang-migrate、goose 等常见工具。

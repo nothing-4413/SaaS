@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS outbox_events;
+DROP TABLE IF EXISTS order_lines;
+DROP TABLE IF EXISTS orders;
+DROP TYPE IF EXISTS outbox_status;
+DROP TYPE IF EXISTS order_status;
+DROP TABLE IF EXISTS inventory_stocks;
+DROP TABLE IF EXISTS warehouses;
+DROP TABLE IF EXISTS skus;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS user_roles;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS organizations;
