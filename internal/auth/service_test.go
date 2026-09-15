@@ -26,3 +26,18 @@ func TestEmailNormalizedAndDuplicateRejected(t *testing.T) {
 		t.Fatalf("expected conflict, got %v", err)
 	}
 }
+
+func TestHasPermissionIsTenantScoped(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	a, _ := s.CreateOrganization(CreateOrganizationInput{Name: "A"})
+	b, _ := s.CreateOrganization(CreateOrganizationInput{Name: "B"})
+	r, _ := s.CreateRole(a.ID, CreateRoleInput{Name: "admin", Permissions: []Permission{PermissionUserWrite}})
+	u, _ := s.CreateUser(a.ID, CreateUserInput{Email: "u@example.com", Name: "U", RoleIDs: []string{r.ID}})
+	ok, err := s.HasPermission(a.ID, u.ID, PermissionUserWrite)
+	if err != nil || !ok {
+		t.Fatalf("expected permission, ok=%v err=%v", ok, err)
+	}
+	if _, err = s.HasPermission(b.ID, u.ID, PermissionUserWrite); err != ErrNotFound {
+		t.Fatalf("expected tenant isolation, got %v", err)
+	}
+}

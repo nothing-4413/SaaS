@@ -61,3 +61,31 @@ func (s *Service) CreateUser(orgID string, in CreateUserInput) (User, error) {
 }
 func (s *Service) ListUsers(orgID string) []User { return s.store.ListUsers(orgID) }
 func (s *Service) ListRoles(orgID string) []Role { return s.store.ListRoles(orgID) }
+
+func (s *Service) HasPermission(orgID, userID string, permission Permission) (bool, error) {
+	if strings.TrimSpace(orgID) == "" || strings.TrimSpace(userID) == "" || permission == "" {
+		return false, ErrInvalidInput
+	}
+	u, err := s.store.GetUser(userID)
+	if err != nil {
+		return false, err
+	}
+	if u.OrganizationID != orgID {
+		return false, ErrNotFound
+	}
+	for _, roleID := range u.RoleIDs {
+		r, err := s.store.GetRole(roleID)
+		if err != nil {
+			continue
+		}
+		if r.OrganizationID != orgID {
+			continue
+		}
+		for _, p := range r.Permissions {
+			if p == permission {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}

@@ -18,6 +18,7 @@ type Store interface {
 	GetRole(string) (Role, error)
 	CreateUser(User) error
 	ListUsers(string) []User
+	GetUser(string) (User, error)
 }
 
 type MemoryStore struct {
@@ -99,4 +100,14 @@ func (s *MemoryStore) ListUsers(orgID string) []User {
 		}
 	}
 	return out
+}
+
+func (s *MemoryStore) GetUser(id string) (User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.users[id]
+	if !ok {
+		return User{}, ErrNotFound
+	}
+	return v, nil
 }
