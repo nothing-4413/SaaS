@@ -32,6 +32,45 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, h.service.List(p[1]))
 		return
 	}
+	if len(p) >= 3 && p[0] == "organizations" && (p[2] == "receipts" || p[2] == "issues") {
+		org, typ := p[1], DocumentReceipt
+		if p[2] == "issues" {
+			typ = DocumentIssue
+		}
+		if len(p) == 3 && r.Method == http.MethodPost {
+			var in DocumentInput
+			if e := json.NewDecoder(r.Body).Decode(&in); e != nil {
+				writeError(w, 400, "invalid JSON")
+				return
+			}
+			var v Document
+			var e error
+			if typ == DocumentReceipt {
+				v, e = h.service.CreateReceipt(org, in)
+			} else {
+				v, e = h.service.CreateIssue(org, in)
+			}
+			if e != nil {
+				writeError(w, status(e), e.Error())
+				return
+			}
+			writeJSON(w, 201, v)
+			return
+		}
+		if len(p) == 3 && r.Method == http.MethodGet {
+			writeJSON(w, 200, h.service.ListDocuments(org, typ))
+			return
+		}
+		if len(p) == 4 && r.Method == http.MethodGet {
+			v, e := h.service.GetDocument(org, p[3])
+			if e != nil {
+				writeError(w, 404, e.Error())
+				return
+			}
+			writeJSON(w, 200, v)
+			return
+		}
+	}
 	http.NotFound(w, r)
 }
 func (h *Handler) mutate(w http.ResponseWriter, r *http.Request, org, warehouse, sku, action string) {

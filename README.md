@@ -45,6 +45,15 @@ go run ./cmd/api
 
 报表返回订单状态数量、已确认销售额，以及库存总量、预占量、可用量和低库存数量，并始终按组织隔离。
 
+## 入库单 / 出库单 API
+
+- `POST/GET /organizations/{id}/receipts` 创建或查询入库单
+- `GET /organizations/{id}/receipts/{documentId}` 查询入库单详情
+- `POST/GET /organizations/{id}/issues` 创建或查询出库单
+- `GET /organizations/{id}/issues/{documentId}` 查询出库单详情
+
+单据使用 `idempotency_key` 防止重复记账；多明细处理中途失败时会补偿已完成的库存变更。
+
 ## Outbox 与审计基础
 
 `internal/outbox` 提供事件入队、幂等去重、批量领取、成功确认和失败重试。事件达到最大尝试次数后进入终态 `failed`，不会再次被领取；非终态失败使用递增退避时间。

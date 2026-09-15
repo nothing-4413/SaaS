@@ -16,7 +16,7 @@ type apiHandler struct{ auth, product, inventory, order, report http.Handler }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
-	if strings.Contains(path, "/stock") || strings.HasSuffix(path, "/stocks") {
+	if strings.Contains(path, "/stock") || strings.HasSuffix(path, "/stocks") || strings.Contains(path, "/receipts") || strings.Contains(path, "/issues") {
 		h.inventory.ServeHTTP(w, r)
 		return
 	}

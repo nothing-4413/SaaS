@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -85,4 +86,63 @@ func (s *Service) Release(org, warehouse, sku string, in StockOperationInput) (S
 }
 func (s *Service) Deduct(org, warehouse, sku string, in StockOperationInput) (Stock, error) {
 	return s.apply(org, warehouse, sku, "deduct", in)
+}
+
+func (s *Service) CreateReceipt(org string, in DocumentInput) (Document, error) {
+	return s.createDocument(org, DocumentReceipt, in)
+}
+func (s *Service) CreateIssue(org string, in DocumentInput) (Document, error) {
+	return s.createDocument(org, DocumentIssue, in)
+}
+func (s *Service) ListDocuments(org string, typ DocumentType) []Document {
+	return s.store.ListDocuments(org, typ)
+}
+func (s *Service) GetDocument(org, id string) (Document, error) {
+	v, e := s.store.GetDocument(id)
+	if e != nil || v.OrganizationID != org {
+		return Document{}, ErrNotFound
+	}
+	return v, nil
+}
+
+func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput) (Document, error) {
+	if strings.TrimSpace(org) == "" || strings.TrimSpace(in.IdempotencyKey) == "" || len(in.Lines) == 0 {
+		return Document{}, ErrInvalidInput
+	}
+	if old, e := s.store.FindDocumentByKey(org, typ, in.IdempotencyKey); e == nil {
+		return old, nil
+	}
+	for _, l := range in.Lines {
+		if strings.TrimSpace(l.WarehouseID) == "" || strings.TrimSpace(l.SKUID) == "" || l.Quantity <= 0 {
+			return Document{}, ErrInvalidInput
+		}
+	}
+	id := fmt.Sprintf("%d", s.now().UnixNano())
+	done := 0
+	for i, l := range in.Lines {
+		key := id + ":" + string(typ) + ":" + fmt.Sprint(i)
+		var e error
+		if typ == DocumentReceipt {
+			_, e = s.Receive(org, l.WarehouseID, l.SKUID, StockOperationInput{Quantity: l.Quantity, IdempotencyKey: key})
+		} else {
+			_, e = s.Deduct(org, l.WarehouseID, l.SKUID, StockOperationInput{Quantity: l.Quantity, IdempotencyKey: key})
+		}
+		if e != nil {
+			for j := 0; j < done; j++ {
+				p := in.Lines[j]
+				if typ == DocumentReceipt {
+					_, _ = s.Deduct(org, p.WarehouseID, p.SKUID, StockOperationInput{Quantity: p.Quantity, IdempotencyKey: id + ":rollback:" + fmt.Sprint(j)})
+				} else {
+					_, _ = s.Receive(org, p.WarehouseID, p.SKUID, StockOperationInput{Quantity: p.Quantity, IdempotencyKey: id + ":rollback:" + fmt.Sprint(j)})
+				}
+			}
+			return Document{}, e
+		}
+		done++
+	}
+	v := Document{ID: id, OrganizationID: org, Type: typ, IdempotencyKey: in.IdempotencyKey, Lines: append([]DocumentLine(nil), in.Lines...), CreatedAt: s.now().UTC()}
+	if e := s.store.CreateDocument(v); e != nil {
+		return Document{}, e
+	}
+	return v, nil
 }
