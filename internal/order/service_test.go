@@ -2,6 +2,7 @@ package order
 
 import (
 	"github.com/nothing-4413/saas/internal/inventory"
+	"github.com/nothing-4413/saas/internal/outbox"
 	"testing"
 )
 
@@ -9,6 +10,8 @@ func TestOrderReserveConfirmAndIdempotency(t *testing.T) {
 	inv := inventory.NewService(inventory.NewMemoryStore())
 	_, _ = inv.Receive("o", "w", "sku", inventory.StockOperationInput{Quantity: 5, IdempotencyKey: "seed"})
 	s := NewService(NewMemoryStore(), inv)
+	events := outbox.NewService(outbox.NewMemoryStore())
+	s.SetEventService(events)
 	in := CreateInput{IdempotencyKey: "order-1", Lines: []Line{{SKUID: "sku", WarehouseID: "w", Quantity: 2, UnitPriceCents: 100}}}
 	a, e := s.Create("o", in)
 	if e != nil {
@@ -24,5 +27,8 @@ func TestOrderReserveConfirmAndIdempotency(t *testing.T) {
 	v, _ := inv.Get("o", "w", "sku")
 	if v.OnHand != 3 || v.Reserved != 0 {
 		t.Fatalf("unexpected stock: %+v", v)
+	}
+	if got := len(events.List("")); got != 2 {
+		t.Fatalf("expected create+confirm events, got %d", got)
 	}
 }

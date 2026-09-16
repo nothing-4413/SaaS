@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nothing-4413/saas/internal/inventory"
+	"github.com/nothing-4413/saas/internal/outbox"
 )
 
 type Service struct {
@@ -16,10 +17,19 @@ type Service struct {
 	now       func() time.Time
 	seq       uint64
 	mu        sync.Mutex
+	events    *outbox.Service
 }
 
 func NewService(store Store, inv *inventory.Service) *Service {
 	return &Service{store: store, inventory: inv, now: time.Now}
+}
+func (s *Service) SetEventService(events *outbox.Service) { s.events = events }
+func (s *Service) emit(v Order, eventType string) error {
+	if s.events == nil {
+		return nil
+	}
+	_, e := s.events.Enqueue(v.OrganizationID, "order", v.ID, eventType, eventType, v)
+	return e
 }
 func (s *Service) id() string {
 	return fmt.Sprintf("%d-%d", s.now().UnixNano(), atomic.AddUint64(&s.seq, 1))
@@ -58,6 +68,9 @@ func (s *Service) Create(org string, in CreateInput) (Order, error) {
 	if e := s.store.Create(v); e != nil {
 		return Order{}, e
 	}
+	if e := s.emit(v, "order.created"); e != nil {
+		return Order{}, e
+	}
 	return v, nil
 }
 func (s *Service) Get(org, id string) (Order, error) {
@@ -88,7 +101,13 @@ func (s *Service) Confirm(org, id string) (Order, error) {
 	}
 	v.Status = StatusConfirmed
 	v.UpdatedAt = s.now().UTC()
-	return v, s.store.Put(v)
+	if e = s.store.Put(v); e != nil {
+		return Order{}, e
+	}
+	if e = s.emit(v, "order.confirmed"); e != nil {
+		return Order{}, e
+	}
+	return v, nil
 }
 func (s *Service) Cancel(org, id string) (Order, error) {
 	s.mu.Lock()
@@ -110,5 +129,11 @@ func (s *Service) Cancel(org, id string) (Order, error) {
 	}
 	v.Status = StatusCancelled
 	v.UpdatedAt = s.now().UTC()
-	return v, s.store.Put(v)
+	if e = s.store.Put(v); e != nil {
+		return Order{}, e
+	}
+	if e = s.emit(v, "order.cancelled"); e != nil {
+		return Order{}, e
+	}
+	return v, nil
 }

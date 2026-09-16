@@ -15,6 +15,7 @@ import (
 	"github.com/nothing-4413/saas/internal/httpx"
 	"github.com/nothing-4413/saas/internal/inventory"
 	"github.com/nothing-4413/saas/internal/order"
+	"github.com/nothing-4413/saas/internal/outbox"
 	"github.com/nothing-4413/saas/internal/product"
 	"github.com/nothing-4413/saas/internal/report"
 )
@@ -54,6 +55,7 @@ func main() {
 	inventoryService := inventory.NewService(inventory.NewMemoryStore())
 	inventoryHandler := inventory.NewHandler(inventoryService)
 	orderService := order.NewService(order.NewMemoryStore(), inventoryService)
+	orderService.SetEventService(outbox.NewService(outbox.NewMemoryStore()))
 	orderHandler := order.NewHandler(orderService)
 	reportHandler := report.NewHandler(report.NewService(orderService, inventoryService))
 	handler := apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler}
