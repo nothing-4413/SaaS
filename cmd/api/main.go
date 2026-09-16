@@ -12,6 +12,7 @@ import (
 
 	"github.com/nothing-4413/saas/internal/auth"
 	"github.com/nothing-4413/saas/internal/config"
+	"github.com/nothing-4413/saas/internal/export"
 	"github.com/nothing-4413/saas/internal/httpx"
 	"github.com/nothing-4413/saas/internal/inventory"
 	"github.com/nothing-4413/saas/internal/order"
@@ -20,7 +21,7 @@ import (
 	"github.com/nothing-4413/saas/internal/report"
 )
 
-type apiHandler struct{ auth, product, inventory, order, report http.Handler }
+type apiHandler struct{ auth, product, inventory, order, report, export http.Handler }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
@@ -38,6 +39,10 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.Contains(path, "/reports/") {
 		h.report.ServeHTTP(w, r)
+		return
+	}
+	if strings.Contains(path, "/exports/") {
+		h.export.ServeHTTP(w, r)
 		return
 	}
 	if strings.Contains(path, "/products") || strings.Contains(path, "/warehouses") {
@@ -58,7 +63,8 @@ func main() {
 	orderService.SetEventService(outbox.NewService(outbox.NewMemoryStore()))
 	orderHandler := order.NewHandler(orderService)
 	reportHandler := report.NewHandler(report.NewService(orderService, inventoryService))
-	handler := apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler}
+	exportHandler := export.NewHandler(orderService, inventoryService)
+	handler := apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler}
 
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	go func() {

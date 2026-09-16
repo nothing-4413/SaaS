@@ -99,6 +99,11 @@ GitHub Actions 会在每次提交和 Pull Request 上使用官方 Go 工具链�
 
 `internal/importer` 提供同格式库存 CSV 导入，校验组织归属、非负数量及 `available = on_hand - reserved` 派生关系，发现任一非法行时整批失败。
 
+CSV 下载接口：
+
+- `GET /organizations/{id}/exports/orders/csv`
+- `GET /organizations/{id}/exports/stocks/csv`
+
 ## Outbox 与审计基础
 
 `internal/outbox` 提供事件入队、幂等去重、批量领取、成功确认和失败重试。事件达到最大尝试次数后进入终态 `failed`，不会再次被领取；非终态失败使用递增退避时间。
