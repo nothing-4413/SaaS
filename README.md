@@ -104,6 +104,10 @@ CSV 下载接口：
 - `GET /organizations/{id}/exports/orders/csv`
 - `GET /organizations/{id}/exports/stocks/csv`
 
+## 会话令牌
+
+`internal/auth` 提供 HMAC-SHA256 无状态令牌的签发与验证，令牌包含用户、组织和过期时间声明；验证时会检查签名和过期时间，适合接入网关或权限中间件。
+
 ## Outbox 与审计基础
 
 `internal/outbox` 提供事件入队、幂等去重、批量领取、成功确认和失败重试。事件达到最大尝试次数后进入终态 `failed`，不会再次被领取；非终态失败使用递增退避时间。
