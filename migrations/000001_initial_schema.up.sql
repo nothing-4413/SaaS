@@ -120,6 +120,7 @@ CREATE TABLE outbox_events (
     status outbox_status NOT NULL DEFAULT 'pending',
     attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     next_attempt_at timestamptz NOT NULL DEFAULT now(),
+    claimed_until timestamptz,
     last_error text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL DEFAULT now(),
     published_at timestamptz,

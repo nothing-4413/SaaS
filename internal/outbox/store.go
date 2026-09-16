@@ -57,9 +57,14 @@ func (s *MemoryStore) Claim(limit int, now time.Time) []Event {
 		if len(out) >= limit {
 			break
 		}
-		if v.Status == StatusPending && !v.NextAttemptAt.After(now) {
+		claimable := (v.Status == StatusPending || v.Status == StatusFailed) && !v.NextAttemptAt.After(now)
+		if v.Status == StatusProcessing && !v.ClaimedUntil.After(now) {
+			claimable = true
+		}
+		if claimable {
 			v.Status = StatusProcessing
 			v.Attempts++
+			v.ClaimedUntil = now.Add(5 * time.Minute)
 			s.items[id] = v
 			out = append(out, v)
 		}
@@ -74,6 +79,7 @@ func (s *MemoryStore) MarkPublished(id string, at time.Time) error {
 		return ErrNotFound
 	}
 	v.Status = StatusPublished
+	v.ClaimedUntil = time.Time{}
 	v.PublishedAt = &at
 	v.LastError = ""
 	s.items[id] = v
@@ -88,6 +94,7 @@ func (s *MemoryStore) MarkFailed(id string, next time.Time, reason string, termi
 	}
 	v.LastError = reason
 	v.NextAttemptAt = next
+	v.ClaimedUntil = time.Time{}
 	if terminal {
 		v.Status = StatusFailed
 	} else {

@@ -22,6 +22,7 @@ type Event struct {
 	Status         Status     `json:"status"`
 	Attempts       int        `json:"attempts"`
 	NextAttemptAt  time.Time  `json:"next_attempt_at"`
+	ClaimedUntil   time.Time  `json:"claimed_until,omitempty"`
 	LastError      string     `json:"last_error,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	PublishedAt    *time.Time `json:"published_at,omitempty"`

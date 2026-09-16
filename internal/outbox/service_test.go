@@ -51,3 +51,22 @@ func TestFailedEventRetriesThenTerminates(t *testing.T) {
 		t.Fatalf("expected terminal failure, got %s", v.Status)
 	}
 }
+
+func TestProcessingLeaseCanBeReclaimed(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	e, _ := s.Enqueue("org", "order", "lease", "created", "k", nil)
+	first := s.Claim(1)
+	if len(first) != 1 {
+		t.Fatal("first claim missing")
+	}
+	store := s.store.(*MemoryStore)
+	store.mu.Lock()
+	v := store.items[e.ID]
+	v.ClaimedUntil = time.Now().Add(-time.Second)
+	store.items[e.ID] = v
+	store.mu.Unlock()
+	second := s.Claim(1)
+	if len(second) != 1 || second[0].ID != e.ID {
+		t.Fatal("expired lease was not reclaimed")
+	}
+}
