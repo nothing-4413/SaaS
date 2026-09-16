@@ -38,6 +38,12 @@ type bucket struct {
 }
 
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
+	if limit <= 0 {
+		limit = 1
+	}
+	if window <= 0 {
+		window = time.Minute
+	}
 	return &RateLimiter{limit: limit, window: window, seen: map[string]bucket{}}
 }
 func (l *RateLimiter) Allow(key string) bool {
@@ -58,10 +64,8 @@ func (l *RateLimiter) Allow(key string) bool {
 }
 func (l *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		key := r.Header.Get("X-Forwarded-For")
-		if key == "" {
-			key = r.RemoteAddr
-		}
+		// Do not trust client-supplied forwarding headers without a trusted proxy boundary.
+		key := r.RemoteAddr
 		if !l.Allow(key) {
 			w.Header().Set("Retry-After", "1")
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)

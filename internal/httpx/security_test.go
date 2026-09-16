@@ -21,3 +21,10 @@ func TestRateLimiter(t *testing.T) {
 		t.Fatal("unexpected limiter result")
 	}
 }
+
+func TestRateLimiterUsesSafeDefaults(t *testing.T) {
+	l := NewRateLimiter(0, 0)
+	if !l.Allow("x") || l.Allow("x") {
+		t.Fatal("invalid limits should normalize to one request per window")
+	}
+}
