@@ -11,6 +11,8 @@ var (
 	ErrConflict = errors.New("outbox deduplication conflict")
 )
 
+const maxClaimAttempts = 5
+
 type Store interface {
 	Enqueue(Event) error
 	Claim(limit int, now time.Time) []Event
@@ -59,7 +61,7 @@ func (s *MemoryStore) Claim(limit int, now time.Time) []Event {
 		}
 		claimable := v.Status == StatusPending && !v.NextAttemptAt.After(now)
 		if v.Status == StatusProcessing && !v.ClaimedUntil.After(now) {
-			claimable = true
+			claimable = v.Attempts < maxClaimAttempts
 		}
 		if claimable {
 			v.Status = StatusProcessing

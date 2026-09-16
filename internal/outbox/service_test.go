@@ -70,3 +70,23 @@ func TestProcessingLeaseCanBeReclaimed(t *testing.T) {
 		t.Fatal("expired lease was not reclaimed")
 	}
 }
+
+func TestExpiredLeaseAtAttemptLimitIsNotReclaimed(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	e, _ := s.Enqueue("org", "order", "limit", "created", "k", nil)
+	for i := 0; i < 5; i++ {
+		claimed := s.Claim(1)
+		if len(claimed) != 1 {
+			t.Fatalf("claim %d missing", i)
+		}
+		store := s.store.(*MemoryStore)
+		store.mu.Lock()
+		v := store.items[e.ID]
+		v.ClaimedUntil = time.Now().Add(-time.Second)
+		store.items[e.ID] = v
+		store.mu.Unlock()
+	}
+	if got := s.Claim(1); len(got) != 0 {
+		t.Fatal("terminal lease was reclaimed")
+	}
+}
