@@ -20,3 +20,13 @@ func TestRequestIDAndRecovery(t *testing.T) {
 		t.Fatalf("status=%d", w.Code)
 	}
 }
+
+func TestAccessLogDefaultsStatusToOK(t *testing.T) {
+	h := AccessLog(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ok")) }))
+	r := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != 200 || w.Body.String() != "ok" {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
