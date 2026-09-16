@@ -141,3 +141,5 @@ OpenAPI 文档已包含 Bearer Token 安全方案，以及报表、库存和 CSV
 迁移文件兼容 golang-migrate、goose 等常见工具。
 
 API Server 默认添加 `X-Request-ID`、访问日志和 panic 恢复中间件，便于请求追踪并避免单个异常导致进程退出。
+
+`GET /metrics` 暴露 Prometheus 兼容的请求总数、错误数和响应字节数指标。

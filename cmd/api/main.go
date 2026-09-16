@@ -22,12 +22,16 @@ import (
 	"github.com/nothing-4413/saas/internal/report"
 )
 
-type apiHandler struct{ auth, product, inventory, order, report, export, importer http.Handler }
+type apiHandler struct{ auth, product, inventory, order, report, export, importer, metrics http.Handler }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
 	if path == "healthz" && r.Method == http.MethodGet {
 		httpx.HealthHandler(w, r)
+		return
+	}
+	if path == "metrics" && r.Method == http.MethodGet {
+		h.metrics.ServeHTTP(w, r)
 		return
 	}
 	if strings.Contains(path, "/stock") || strings.HasSuffix(path, "/stocks") || strings.Contains(path, "/receipts") || strings.Contains(path, "/issues") {
@@ -70,7 +74,9 @@ func main() {
 	reportHandler := report.NewHandler(report.NewService(orderService, inventoryService))
 	exportHandler := export.NewHandler(orderService, inventoryService)
 	importerHandler := importer.NewHandler()
-	handler := httpx.Chain(apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler, importer: importerHandler})
+	metrics := httpx.NewMetrics()
+	base := apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler, importer: importerHandler, metrics: metrics}
+	handler := httpx.Chain(metrics.Wrap(base))
 
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	go func() {
