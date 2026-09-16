@@ -75,6 +75,16 @@ go run ./cmd/api
 
 服务健康检查：`GET /healthz`。通过 `.env.example` 中的环境变量可配置监听地址、PostgreSQL 和 Redis 连接串；服务收到 SIGINT/SIGTERM 时会等待正在处理的请求完成后退出。
 
+## 常用命令
+
+```bash
+make test       # 单元测试
+make build      # 构建全部 Go 包
+make docker-up  # 启动 PostgreSQL / Redis
+```
+
+GitHub Actions 会在每次提交和 Pull Request 上使用官方 Go 工具链执行格式检查、测试和构建。
+
 ## Outbox 与审计基础
 
 `internal/outbox` 提供事件入队、幂等去重、批量领取、成功确认和失败重试。事件达到最大尝试次数后进入终态 `failed`，不会再次被领取；非终态失败使用递增退避时间。
