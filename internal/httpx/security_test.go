@@ -28,3 +28,18 @@ func TestRateLimiterUsesSafeDefaults(t *testing.T) {
 		t.Fatal("invalid limits should normalize to one request per window")
 	}
 }
+
+func TestRateLimiterCleansExpiredClients(t *testing.T) {
+	l := NewRateLimiter(1, time.Millisecond)
+	l.maxKeys = 1
+	if !l.Allow("expired") {
+		t.Fatal("first request rejected")
+	}
+	time.Sleep(2 * time.Millisecond)
+	if !l.Allow("fresh") {
+		t.Fatal("fresh client rejected")
+	}
+	if _, ok := l.seen["expired"]; ok {
+		t.Fatal("expired client was not cleaned")
+	}
+}

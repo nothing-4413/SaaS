@@ -27,10 +27,11 @@ func MaxBodyBytes(limit int64, next http.Handler) http.Handler {
 }
 
 type RateLimiter struct {
-	mu     sync.Mutex
-	limit  int
-	window time.Duration
-	seen   map[string]bucket
+	mu      sync.Mutex
+	limit   int
+	window  time.Duration
+	seen    map[string]bucket
+	maxKeys int
 }
 type bucket struct {
 	started time.Time
@@ -44,12 +45,19 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 	if window <= 0 {
 		window = time.Minute
 	}
-	return &RateLimiter{limit: limit, window: window, seen: map[string]bucket{}}
+	return &RateLimiter{limit: limit, window: window, seen: map[string]bucket{}, maxKeys: 10000}
 }
 func (l *RateLimiter) Allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()
+	if len(l.seen) >= l.maxKeys {
+		for k, v := range l.seen {
+			if now.Sub(v.started) >= l.window {
+				delete(l.seen, k)
+			}
+		}
+	}
 	b := l.seen[key]
 	if b.started.IsZero() || now.Sub(b.started) >= l.window {
 		l.seen[key] = bucket{started: now, count: 1}
