@@ -139,3 +139,5 @@ OpenAPI 文档已包含 Bearer Token 安全方案，以及报表、库存和 CSV
 `migrations/000001_initial_schema.up.sql` 定义第一版持久化结构，覆盖租户、权限、商品、仓库、库存、订单、Outbox 和审计日志。库存表通过 `CHECK (reserved <= on_hand)` 保证预占量不会超过现有库存；订单和 Outbox 使用组织范围内的幂等唯一约束。
 
 迁移文件兼容 golang-migrate、goose 等常见工具。
+
+API Server 默认添加 `X-Request-ID`、访问日志和 panic 恢复中间件，便于请求追踪并避免单个异常导致进程退出。
