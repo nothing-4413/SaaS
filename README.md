@@ -73,6 +73,14 @@ docker compose up -d
 go run ./cmd/api
 ```
 
+也可以直接启动完整容器栈：
+
+```bash
+docker compose up --build
+```
+
+API 容器监听 `8080`，PostgreSQL 和 Redis 通过健康检查后才会启动 API。
+
 服务健康检查：`GET /healthz`。通过 `.env.example` 中的环境变量可配置监听地址、PostgreSQL 和 Redis 连接串；服务收到 SIGINT/SIGTERM 时会等待正在处理的请求完成后退出。
 
 ## 常用命令
@@ -113,6 +121,8 @@ CSV 下载接口：
 OpenAPI 文档已包含 Bearer Token 安全方案，以及报表、库存和 CSV 导出接口定义。
 
 架构细节见 [docs/architecture.md](docs/architecture.md)，安全问题报告流程见 [SECURITY.md](SECURITY.md)。
+
+项目采用 MIT License，贡献规范见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## Outbox 与审计基础
 
