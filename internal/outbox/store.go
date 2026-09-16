@@ -57,7 +57,7 @@ func (s *MemoryStore) Claim(limit int, now time.Time) []Event {
 		if len(out) >= limit {
 			break
 		}
-		claimable := (v.Status == StatusPending || v.Status == StatusFailed) && !v.NextAttemptAt.After(now)
+		claimable := v.Status == StatusPending && !v.NextAttemptAt.After(now)
 		if v.Status == StatusProcessing && !v.ClaimedUntil.After(now) {
 			claimable = true
 		}
