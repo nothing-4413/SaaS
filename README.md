@@ -124,6 +124,8 @@ OpenAPI 文档已包含 Bearer Token 安全方案，以及报表、库存和 CSV
 
 架构细节见 [docs/architecture.md](docs/architecture.md)，安全问题报告流程见 [SECURITY.md](SECURITY.md)。
 
+数据库事务辅助代码见 [internal/platform/sqltx](internal/platform/sqltx)，可在 PostgreSQL Repository 中复用事务提交、回滚和库存行锁逻辑。
+
 项目采用 MIT License，贡献规范见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## Outbox 与审计基础
