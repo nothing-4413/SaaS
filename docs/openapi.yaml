@@ -50,7 +50,30 @@ paths:
           in: query
           schema: { type: integer, format: int64, minimum: 0, default: 0 }
       responses: { '200': { description: Summary } }
+  /organizations/{organizationId}/exports/orders/csv:
+    get:
+      summary: Export orders as CSV
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      responses: { '200': { description: CSV download, content: { text/csv: {} } } }
+  /organizations/{organizationId}/exports/stocks/csv:
+    get:
+      summary: Export stocks as CSV
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      responses: { '200': { description: CSV download, content: { text/csv: {} } } }
+  /organizations/{organizationId}/stocks:
+    get:
+      summary: List stock balances
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      responses: { '200': { description: Stock list } }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-hmac-token
   parameters:
     OrganizationId: { name: organizationId, in: path, required: true, schema: { type: string } }
     OrderId: { name: orderId, in: path, required: true, schema: { type: string } }
