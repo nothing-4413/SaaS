@@ -112,6 +112,8 @@ CSV 下载接口：
 - `GET /organizations/{id}/exports/orders/csv`
 - `GET /organizations/{id}/exports/stocks/csv`
 
+库存导入接口：`POST /organizations/{id}/imports/stocks`，请求体为库存 CSV，服务会先完成整批校验，再返回解析结果。
+
 ## 会话令牌
 
 `internal/auth` 提供 HMAC-SHA256 无状态令牌的签发与验证，令牌包含用户、组织和过期时间声明；验证时会检查签名和过期时间，适合接入网关或权限中间件。
