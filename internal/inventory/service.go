@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,6 +17,7 @@ type Service struct {
 	now        func() time.Time
 	mu         sync.Mutex
 	operations map[string]operation
+	seq        uint64
 }
 
 func NewService(store Store) *Service {
@@ -123,7 +125,7 @@ func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput)
 			return Document{}, ErrInvalidInput
 		}
 	}
-	id := fmt.Sprintf("%d", s.now().UnixNano())
+	id := fmt.Sprintf("%d-%d", s.now().UnixNano(), atomic.AddUint64(&s.seq, 1))
 	done := 0
 	for i, l := range in.Lines {
 		key := id + ":" + string(typ) + ":" + fmt.Sprint(i)
