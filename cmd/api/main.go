@@ -76,7 +76,8 @@ func main() {
 	importerHandler := importer.NewHandler()
 	metrics := httpx.NewMetrics()
 	base := apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler, importer: importerHandler, metrics: metrics}
-	handler := httpx.Chain(metrics.Wrap(base))
+	limiter := httpx.NewRateLimiter(120, time.Minute)
+	handler := httpx.Chain(httpx.SecurityHeaders(httpx.MaxBodyBytes(2<<20, limiter.Middleware(metrics.Wrap(base)))))
 
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	go func() {
