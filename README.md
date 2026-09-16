@@ -85,6 +85,10 @@ make docker-up  # 启动 PostgreSQL / Redis
 
 GitHub Actions 会在每次提交和 Pull Request 上使用官方 Go 工具链执行格式检查、测试和构建。
 
+## Webhook
+
+`internal/webhook` 提供带 HMAC-SHA256 签名的 HTTP 推送：请求包含 `X-Webhook-Event`、`X-Webhook-Id`、`X-Idempotency-Key` 和 `X-Webhook-Signature`，默认超时 10 秒，非 2xx 响应会返回错误交给 Outbox 重试。
+
 ## Outbox 与审计基础
 
 `internal/outbox` 提供事件入队、幂等去重、批量领取、成功确认和失败重试。事件达到最大尝试次数后进入终态 `failed`，不会再次被领取；非终态失败使用递增退避时间。
