@@ -68,6 +68,17 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
       responses: { '200': { description: Stock list } }
+  /organizations/{organizationId}/imports/stocks:
+    post:
+      summary: Validate and import stock CSV
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema: { type: string }
+      responses: { '200': { description: Imported stock rows }, '400': { description: Invalid CSV } }
 components:
   securitySchemes:
     bearerAuth:
