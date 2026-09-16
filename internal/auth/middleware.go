@@ -1,6 +1,10 @@
 package auth
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+	"strings"
+)
 
 // RequirePermission protects an endpoint using tenant and user headers.
 // The route handler remains responsible for validating the organization in its URL.
@@ -27,4 +31,33 @@ func RequirePermission(service *Service, permission Permission, next http.Handle
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func RequireTokenPermission(service *Service, secret string, permission Permission, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Fields(r.Header.Get("Authorization"))
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			http.Error(w, "missing bearer token", http.StatusUnauthorized)
+			return
+		}
+		claims, err := ParseToken(secret, parts[1])
+		if err != nil {
+			http.Error(w, "invalid token", http.StatusUnauthorized)
+			return
+		}
+		allowed, err := service.HasPermission(claims.OrganizationID, claims.UserID, permission)
+		if err != nil || !allowed {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		ctx := context.WithValue(r.Context(), claimsKey{}, claims)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+type claimsKey struct{}
+
+func ClaimsFromContext(ctx context.Context) (Claims, bool) {
+	v, ok := ctx.Value(claimsKey{}).(Claims)
+	return v, ok
 }
