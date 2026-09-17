@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("outbox event not found")
-	ErrConflict = errors.New("outbox deduplication conflict")
+	ErrNotFound     = errors.New("outbox event not found")
+	ErrConflict     = errors.New("outbox deduplication conflict")
+	ErrInvalidState = errors.New("invalid outbox event state transition")
 )
 
 const maxClaimAttempts = 5
@@ -59,7 +60,7 @@ func (s *MemoryStore) Claim(limit int, now time.Time) []Event {
 		if len(out) >= limit {
 			break
 		}
-		claimable := v.Status == StatusPending && !v.NextAttemptAt.After(now)
+		claimable := v.Status == StatusPending && v.Attempts < maxClaimAttempts && !v.NextAttemptAt.After(now)
 		if v.Status == StatusProcessing && !v.ClaimedUntil.After(now) {
 			claimable = v.Attempts < maxClaimAttempts
 		}
@@ -80,6 +81,9 @@ func (s *MemoryStore) MarkPublished(id string, at time.Time) error {
 	if !ok {
 		return ErrNotFound
 	}
+	if v.Status != StatusProcessing {
+		return ErrInvalidState
+	}
 	v.Status = StatusPublished
 	v.ClaimedUntil = time.Time{}
 	v.PublishedAt = &at
@@ -93,6 +97,9 @@ func (s *MemoryStore) MarkFailed(id string, next time.Time, reason string, termi
 	v, ok := s.items[id]
 	if !ok {
 		return ErrNotFound
+	}
+	if v.Status != StatusProcessing {
+		return ErrInvalidState
 	}
 	v.LastError = reason
 	v.NextAttemptAt = next
