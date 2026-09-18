@@ -62,7 +62,14 @@ func (s *MemoryStore) Claim(limit int, now time.Time) []Event {
 		}
 		claimable := v.Status == StatusPending && v.Attempts < maxClaimAttempts && !v.NextAttemptAt.After(now)
 		if v.Status == StatusProcessing && !v.ClaimedUntil.After(now) {
-			claimable = v.Attempts < maxClaimAttempts
+			if v.Attempts >= maxClaimAttempts {
+				v.Status = StatusFailed
+				v.LastError = "processing lease expired after maximum attempts"
+				v.ClaimedUntil = time.Time{}
+				s.items[id] = v
+				continue
+			}
+			claimable = true
 		}
 		if claimable {
 			v.Status = StatusProcessing

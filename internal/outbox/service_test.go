@@ -71,7 +71,7 @@ func TestProcessingLeaseCanBeReclaimed(t *testing.T) {
 	}
 }
 
-func TestExpiredLeaseAtAttemptLimitIsNotReclaimed(t *testing.T) {
+func TestExpiredLeaseAtAttemptLimitBecomesFailed(t *testing.T) {
 	s := NewService(NewMemoryStore())
 	e, _ := s.Enqueue("org", "order", "limit", "created", "k", nil)
 	for i := 0; i < 5; i++ {
@@ -88,5 +88,9 @@ func TestExpiredLeaseAtAttemptLimitIsNotReclaimed(t *testing.T) {
 	}
 	if got := s.Claim(1); len(got) != 0 {
 		t.Fatal("terminal lease was reclaimed")
+	}
+	v, _ := s.Get(e.ID)
+	if v.Status != StatusFailed {
+		t.Fatalf("status=%s", v.Status)
 	}
 }
