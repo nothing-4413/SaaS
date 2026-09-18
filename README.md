@@ -80,6 +80,7 @@ docker compose up --build
 ```
 
 API 容器监听 `8080`，PostgreSQL 和 Redis 通过健康检查后才会启动 API。
+API 容器自身也通过 `/healthz` 健康检查，便于 Compose 或编排平台摘除未就绪实例。
 
 服务健康检查：`GET /healthz`。通过 `.env.example` 中的环境变量可配置监听地址、PostgreSQL 和 Redis 连接串；服务收到 SIGINT/SIGTERM 时会等待正在处理的请求完成后退出。
 
