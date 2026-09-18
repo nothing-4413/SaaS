@@ -29,11 +29,14 @@ func TestConcurrentReserveAndIdempotency(t *testing.T) {
 	if success != 10 {
 		t.Fatalf("reserved %d, want 10", success)
 	}
-	a, e := s.Reserve("o", "w", "sku", StockOperationInput{Quantity: 2, IdempotencyKey: "same"})
+	if _, e := s.Receive("o", "w", "sku-idempotent", StockOperationInput{Quantity: 2, IdempotencyKey: "in-2"}); e != nil {
+		t.Fatal(e)
+	}
+	a, e := s.Reserve("o", "w", "sku-idempotent", StockOperationInput{Quantity: 2, IdempotencyKey: "same"})
 	if e != nil {
 		t.Fatal(e)
 	}
-	b, e := s.Reserve("o", "w", "sku", StockOperationInput{Quantity: 2, IdempotencyKey: "same"})
+	b, e := s.Reserve("o", "w", "sku-idempotent", StockOperationInput{Quantity: 2, IdempotencyKey: "same"})
 	if e != nil || a.Reserved != b.Reserved {
 		t.Fatalf("idempotency failed: %#v %#v %v", a, b, e)
 	}

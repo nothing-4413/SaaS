@@ -28,6 +28,8 @@ func TestEnqueueClaimAndDeduplicate(t *testing.T) {
 }
 func TestFailedEventRetriesThenTerminates(t *testing.T) {
 	s := NewService(NewMemoryStore())
+	now := time.Now().UTC()
+	s.now = func() time.Time { return now }
 	e, _ := s.Enqueue("org", "order", "o2", "order.created", "create", nil)
 	for i := 0; i < 5; i++ {
 		claimed := s.Claim(1)
@@ -42,8 +44,7 @@ func TestFailedEventRetriesThenTerminates(t *testing.T) {
 			t.Fatalf("attempt %d status=%s", i, v.Status)
 		}
 		if i < 4 {
-			v.NextAttemptAt = time.Time{}
-			_ = s.store.MarkFailed(e.ID, time.Time{}, v.LastError, false)
+			now = v.NextAttemptAt
 		}
 	}
 	v, _ := s.Get(e.ID)
