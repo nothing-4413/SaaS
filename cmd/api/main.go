@@ -75,7 +75,7 @@ func main() {
 	defer db.Close()
 	store := auth.NewPostgresStore(db)
 	service := auth.NewService(store)
-	productHandler := product.NewHandler(product.NewService(product.NewMemoryStore()))
+	productHandler := product.NewHandler(product.NewService(product.NewPostgresStore(db)))
 	inventoryService := inventory.NewService(inventory.NewMemoryStore())
 	inventoryHandler := inventory.NewHandler(inventoryService)
 	orderService := order.NewService(order.NewMemoryStore(), inventoryService)
