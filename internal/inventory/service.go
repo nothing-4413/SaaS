@@ -146,15 +146,19 @@ func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput)
 	if strings.TrimSpace(org) == "" || strings.TrimSpace(in.IdempotencyKey) == "" || len(in.Lines) == 0 {
 		return Document{}, ErrInvalidInput
 	}
-	if old, e := s.store.FindDocumentByKey(org, typ, in.IdempotencyKey); e == nil {
-		return old, nil
-	}
 	for _, l := range in.Lines {
 		if strings.TrimSpace(l.WarehouseID) == "" || strings.TrimSpace(l.SKUID) == "" || l.Quantity <= 0 {
 			return Document{}, ErrInvalidInput
 		}
 	}
 	id := idgen.New()
+	v := Document{ID: id, OrganizationID: org, Type: typ, IdempotencyKey: in.IdempotencyKey, Lines: append([]DocumentLine(nil), in.Lines...), CreatedAt: s.now().UTC()}
+	if store, ok := s.store.(TransactionalDocumentStore); ok {
+		return store.CreateDocumentAtomic(v)
+	}
+	if old, e := s.store.FindDocumentByKey(org, typ, in.IdempotencyKey); e == nil {
+		return old, nil
+	}
 	operationPrefix := "document:" + string(typ) + ":" + in.IdempotencyKey
 	done := 0
 	for i, l := range in.Lines {
@@ -178,7 +182,6 @@ func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput)
 		}
 		done++
 	}
-	v := Document{ID: id, OrganizationID: org, Type: typ, IdempotencyKey: in.IdempotencyKey, Lines: append([]DocumentLine(nil), in.Lines...), CreatedAt: s.now().UTC()}
 	if e := s.store.CreateDocument(v); e != nil {
 		if errors.Is(e, ErrConflict) {
 			if old, findErr := s.store.FindDocumentByKey(org, typ, in.IdempotencyKey); findErr == nil {

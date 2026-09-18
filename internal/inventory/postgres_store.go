@@ -4,10 +4,87 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
+
+func documentLineOrder(lines []DocumentLine) []int {
+	indices := make([]int, len(lines))
+	for i := range lines {
+		indices[i] = i
+	}
+	sort.SliceStable(indices, func(i, j int) bool {
+		left, right := lines[indices[i]], lines[indices[j]]
+		if left.WarehouseID != right.WarehouseID {
+			return left.WarehouseID < right.WarehouseID
+		}
+		return left.SKUID < right.SKUID
+	})
+	return indices
+}
+
+func (s *PostgresStore) CreateDocumentAtomic(v Document) (Document, error) {
+	ctx := context.Background()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Document{}, err
+	}
+	defer tx.Rollback()
+	var oldID string
+	err = tx.QueryRowContext(ctx, `SELECT id FROM inventory_documents WHERE organization_id=$1 AND document_type=$2 AND idempotency_key=$3`, v.OrganizationID, v.Type, v.IdempotencyKey).Scan(&oldID)
+	if err == nil {
+		_ = tx.Rollback()
+		return s.GetDocument(oldID)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return Document{}, err
+	}
+	for _, i := range documentLineOrder(v.Lines) {
+		line := v.Lines[i]
+		var onHand, reserved int64
+		if v.Type == DocumentReceipt {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO inventory_stocks (organization_id,warehouse_id,sku_id,on_hand,reserved,updated_at) VALUES ($1,$2,$3,0,0,$4) ON CONFLICT DO NOTHING`, v.OrganizationID, line.WarehouseID, line.SKUID, v.CreatedAt); err != nil {
+				return Document{}, err
+			}
+		}
+		if err = tx.QueryRowContext(ctx, `SELECT on_hand,reserved FROM inventory_stocks WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3 FOR UPDATE`, v.OrganizationID, line.WarehouseID, line.SKUID).Scan(&onHand, &reserved); err != nil {
+			return Document{}, err
+		}
+		if v.Type == DocumentReceipt {
+			onHand += line.Quantity
+		} else {
+			if onHand-reserved < line.Quantity {
+				return Document{}, ErrInsufficient
+			}
+			onHand -= line.Quantity
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE inventory_stocks SET on_hand=$4,updated_at=$5 WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3`, v.OrganizationID, line.WarehouseID, line.SKUID, onHand, v.CreatedAt); err != nil {
+			return Document{}, err
+		}
+		action := "receive"
+		if v.Type == DocumentIssue {
+			action = "deduct"
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO inventory_operations (organization_id,warehouse_id,sku_id,action,quantity,idempotency_key,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`, v.OrganizationID, line.WarehouseID, line.SKUID, action, line.Quantity, fmt.Sprintf("document:%s:%s:%d", v.Type, v.IdempotencyKey, i), v.CreatedAt); err != nil {
+			return Document{}, err
+		}
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO inventory_documents (id,organization_id,document_type,idempotency_key,created_at) VALUES ($1,$2,$3,$4,$5)`, v.ID, v.OrganizationID, v.Type, v.IdempotencyKey, v.CreatedAt); err != nil {
+		return Document{}, inventoryPGError(err)
+	}
+	for _, line := range v.Lines {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO inventory_document_lines (organization_id,document_id,warehouse_id,sku_id,quantity) VALUES ($1,$2,$3,$4,$5)`, v.OrganizationID, v.ID, line.WarehouseID, line.SKUID, line.Quantity); err != nil {
+			return Document{}, err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return Document{}, err
+	}
+	return v, nil
+}
 
 type PostgresStore struct{ db *sql.DB }
 

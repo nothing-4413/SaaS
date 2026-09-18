@@ -31,6 +31,10 @@ type ImportStore interface {
 	ImportStocks([]Stock, time.Time) error
 }
 
+type TransactionalDocumentStore interface {
+	CreateDocumentAtomic(Document) (Document, error)
+}
+
 type MemoryStore struct {
 	mu        sync.RWMutex
 	items     map[string]Stock

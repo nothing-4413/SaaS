@@ -3,7 +3,13 @@ package order
 import (
 	"errors"
 	"sync"
+	"time"
 )
+
+type TransactionalStore interface {
+	CreateAtomic(Order) (Order, error)
+	TransitionAtomic(string, string, Status, time.Time) (Order, error)
+}
 
 var (
 	ErrNotFound     = errors.New("order not found")

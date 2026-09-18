@@ -37,9 +37,6 @@ func (s *Service) Create(org string, in CreateInput) (Order, error) {
 	if strings.TrimSpace(org) == "" || strings.TrimSpace(in.IdempotencyKey) == "" || len(in.Lines) == 0 {
 		return Order{}, ErrInvalidInput
 	}
-	if old, e := s.store.FindByKey(org, in.IdempotencyKey); e == nil {
-		return old, nil
-	}
 	total := int64(0)
 	for _, l := range in.Lines {
 		if strings.TrimSpace(l.SKUID) == "" || strings.TrimSpace(l.WarehouseID) == "" || l.Quantity <= 0 || l.UnitPriceCents < 0 {
@@ -48,6 +45,14 @@ func (s *Service) Create(org string, in CreateInput) (Order, error) {
 		total += l.Quantity * l.UnitPriceCents
 	}
 	id := s.id()
+	now := s.now().UTC()
+	v := Order{ID: id, OrganizationID: org, IdempotencyKey: in.IdempotencyKey, Status: StatusPending, Lines: append([]Line(nil), in.Lines...), TotalCents: total, CreatedAt: now, UpdatedAt: now}
+	if store, ok := s.store.(TransactionalStore); ok {
+		return store.CreateAtomic(v)
+	}
+	if old, e := s.store.FindByKey(org, in.IdempotencyKey); e == nil {
+		return old, nil
+	}
 	reserved := 0
 	for i, l := range in.Lines {
 		_, e := s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":reserve:" + fmt.Sprint(i)})
@@ -60,8 +65,6 @@ func (s *Service) Create(org string, in CreateInput) (Order, error) {
 		}
 		reserved++
 	}
-	now := s.now().UTC()
-	v := Order{ID: id, OrganizationID: org, IdempotencyKey: in.IdempotencyKey, Status: StatusPending, Lines: append([]Line(nil), in.Lines...), TotalCents: total, CreatedAt: now, UpdatedAt: now}
 	if e := s.store.Create(v); e != nil {
 		for i, l := range v.Lines {
 			_, _ = s.inventory.Release(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: v.ID + ":store-rollback:" + fmt.Sprint(i)})
@@ -88,6 +91,9 @@ func (s *Service) List(org string) []Order { return s.store.List(org) }
 func (s *Service) Confirm(org, id string) (Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if store, ok := s.store.(TransactionalStore); ok {
+		return store.TransitionAtomic(org, id, StatusConfirmed, s.now().UTC())
+	}
 	v, e := s.Get(org, id)
 	if e != nil {
 		return Order{}, e
@@ -126,6 +132,9 @@ func (s *Service) Confirm(org, id string) (Order, error) {
 func (s *Service) Cancel(org, id string) (Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if store, ok := s.store.(TransactionalStore); ok {
+		return store.TransitionAtomic(org, id, StatusCancelled, s.now().UTC())
+	}
 	v, e := s.Get(org, id)
 	if e != nil {
 		return Order{}, e
