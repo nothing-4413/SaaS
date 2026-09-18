@@ -13,6 +13,7 @@ var (
 
 type Store interface {
 	Create(Order) error
+	Delete(string) error
 	Get(string) (Order, error)
 	Put(Order) error
 	List(string) []Order
@@ -36,6 +37,17 @@ func (s *MemoryStore) Create(v Order) error {
 	}
 	s.items[v.ID] = v
 	s.keys[k] = v.ID
+	return nil
+}
+func (s *MemoryStore) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.items[id]
+	if !ok {
+		return ErrNotFound
+	}
+	delete(s.items, id)
+	delete(s.keys, v.OrganizationID+"\x00"+v.IdempotencyKey)
 	return nil
 }
 func (s *MemoryStore) Get(id string) (Order, error) {

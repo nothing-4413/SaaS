@@ -69,6 +69,10 @@ func (s *Service) Create(org string, in CreateInput) (Order, error) {
 		return Order{}, e
 	}
 	if e := s.emit(v, "order.created"); e != nil {
+		_ = s.store.Delete(v.ID)
+		for i, l := range v.Lines {
+			_, _ = s.inventory.Release(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: v.ID + ":event-rollback:" + fmt.Sprint(i)})
+		}
 		return Order{}, e
 	}
 	return v, nil
@@ -94,6 +98,7 @@ func (s *Service) Confirm(org, id string) (Order, error) {
 	if v.Status == StatusCancelled {
 		return Order{}, ErrInvalidInput
 	}
+	previous := v
 	for i, l := range v.Lines {
 		if _, e = s.inventory.ConsumeReserved(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":deduct:" + fmt.Sprint(i)}); e != nil {
 			return Order{}, e
@@ -105,6 +110,11 @@ func (s *Service) Confirm(org, id string) (Order, error) {
 		return Order{}, e
 	}
 	if e = s.emit(v, "order.confirmed"); e != nil {
+		_ = s.store.Put(previous)
+		for i, l := range v.Lines {
+			_, _ = s.inventory.Receive(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":event-rollback-receive:" + fmt.Sprint(i)})
+			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":event-rollback-reserve:" + fmt.Sprint(i)})
+		}
 		return Order{}, e
 	}
 	return v, nil
@@ -122,6 +132,7 @@ func (s *Service) Cancel(org, id string) (Order, error) {
 	if v.Status == StatusConfirmed {
 		return Order{}, ErrInvalidInput
 	}
+	previous := v
 	for i, l := range v.Lines {
 		if _, e = s.inventory.Release(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":cancel:" + fmt.Sprint(i)}); e != nil {
 			return Order{}, e
@@ -133,6 +144,10 @@ func (s *Service) Cancel(org, id string) (Order, error) {
 		return Order{}, e
 	}
 	if e = s.emit(v, "order.cancelled"); e != nil {
+		_ = s.store.Put(previous)
+		for i, l := range v.Lines {
+			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":event-rollback-reserve:" + fmt.Sprint(i)})
+		}
 		return Order{}, e
 	}
 	return v, nil
