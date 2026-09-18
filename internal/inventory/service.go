@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/nothing-4413/saas/internal/platform/idgen"
 )
 
 type operation struct {
@@ -18,7 +19,6 @@ type Service struct {
 	mu         sync.Mutex
 	documentMu sync.Mutex
 	operations map[string]operation
-	seq        uint64
 }
 
 func NewService(store Store) *Service {
@@ -128,7 +128,7 @@ func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput)
 			return Document{}, ErrInvalidInput
 		}
 	}
-	id := fmt.Sprintf("%d-%d", s.now().UnixNano(), atomic.AddUint64(&s.seq, 1))
+	id := idgen.New()
 	done := 0
 	for i, l := range in.Lines {
 		key := id + ":" + string(typ) + ":" + fmt.Sprint(i)

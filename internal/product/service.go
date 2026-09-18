@@ -2,10 +2,10 @@ package product
 
 import (
 	"errors"
-	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	"github.com/nothing-4413/saas/internal/platform/idgen"
 )
 
 var ErrInvalidInput = errors.New("invalid input")
@@ -13,13 +13,10 @@ var ErrInvalidInput = errors.New("invalid input")
 type Service struct {
 	store Store
 	now   func() time.Time
-	seq   uint64
 }
 
 func NewService(store Store) *Service { return &Service{store: store, now: time.Now} }
-func (s *Service) id() string {
-	return fmt.Sprintf("%d-%d", s.now().UnixNano(), atomic.AddUint64(&s.seq, 1))
-}
+func (s *Service) id() string         { return idgen.New() }
 func (s *Service) CreateProduct(org string, in CreateProductInput) (Product, error) {
 	n := strings.TrimSpace(in.Name)
 	if n == "" {

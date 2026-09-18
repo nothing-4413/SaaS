@@ -3,10 +3,10 @@ package outbox
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	"github.com/nothing-4413/saas/internal/platform/idgen"
 )
 
 var ErrInvalidInput = errors.New("invalid outbox event")
@@ -14,7 +14,6 @@ var ErrInvalidInput = errors.New("invalid outbox event")
 type Service struct {
 	store       Store
 	now         func() time.Time
-	seq         uint64
 	maxAttempts int
 }
 
@@ -28,7 +27,7 @@ func (s *Service) Enqueue(org, aggregateType, aggregateID, eventType, dedupKey s
 		return Event{}, e
 	}
 	now := s.now().UTC()
-	v := Event{ID: fmt.Sprintf("%d-%d", now.UnixNano(), atomic.AddUint64(&s.seq, 1)), OrganizationID: org, AggregateType: aggregateType, AggregateID: aggregateID, Type: eventType, DedupKey: dedupKey, Payload: b, Status: StatusPending, NextAttemptAt: now, CreatedAt: now}
+	v := Event{ID: idgen.New(), OrganizationID: org, AggregateType: aggregateType, AggregateID: aggregateID, Type: eventType, DedupKey: dedupKey, Payload: b, Status: StatusPending, NextAttemptAt: now, CreatedAt: now}
 	if e = s.store.Enqueue(v); e != nil {
 		return Event{}, e
 	}

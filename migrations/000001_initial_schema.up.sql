@@ -113,7 +113,7 @@ CREATE TABLE outbox_events (
     id uuid PRIMARY KEY,
     organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     aggregate_type text NOT NULL,
-    aggregate_id uuid NOT NULL,
+    aggregate_id text NOT NULL,
     event_type text NOT NULL,
     dedup_key text NOT NULL,
     payload jsonb NOT NULL,

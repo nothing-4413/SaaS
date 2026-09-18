@@ -2,25 +2,21 @@ package auth
 
 import (
 	"errors"
-	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	"github.com/nothing-4413/saas/internal/platform/idgen"
 )
 
 var ErrInvalidInput = errors.New("invalid input")
 
 type Service struct {
-	store  Store
-	now    func() time.Time
-	nextID uint64
+	store Store
+	now   func() time.Time
 }
 
 func NewService(store Store) *Service { return &Service{store: store, now: time.Now} }
-func (s *Service) id() string {
-	sequence := atomic.AddUint64(&s.nextID, 1)
-	return fmt.Sprintf("%d-%d", s.now().UTC().UnixNano(), sequence)
-}
+func (s *Service) id() string         { return idgen.New() }
 
 func (s *Service) CreateOrganization(in CreateOrganizationInput) (Organization, error) {
 	name := strings.TrimSpace(in.Name)

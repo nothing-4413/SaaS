@@ -4,18 +4,17 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/nothing-4413/saas/internal/inventory"
 	"github.com/nothing-4413/saas/internal/outbox"
+	"github.com/nothing-4413/saas/internal/platform/idgen"
 )
 
 type Service struct {
 	store     Store
 	inventory *inventory.Service
 	now       func() time.Time
-	seq       uint64
 	mu        sync.Mutex
 	events    *outbox.Service
 }
@@ -31,9 +30,7 @@ func (s *Service) emit(v Order, eventType string) error {
 	_, e := s.events.Enqueue(v.OrganizationID, "order", v.ID, eventType, eventType, v)
 	return e
 }
-func (s *Service) id() string {
-	return fmt.Sprintf("%d-%d", s.now().UnixNano(), atomic.AddUint64(&s.seq, 1))
-}
+func (s *Service) id() string { return idgen.New() }
 func (s *Service) Create(org string, in CreateInput) (Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
