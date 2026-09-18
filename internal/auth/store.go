@@ -19,6 +19,7 @@ type Store interface {
 	CreateUser(User) error
 	ListUsers(string) []User
 	GetUser(string) (User, error)
+	FindUserByEmail(string, string) (User, error)
 }
 
 type MemoryStore struct {
@@ -110,4 +111,14 @@ func (s *MemoryStore) GetUser(id string) (User, error) {
 		return User{}, ErrNotFound
 	}
 	return v, nil
+}
+func (s *MemoryStore) FindUserByEmail(orgID, email string) (User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, v := range s.users {
+		if v.OrganizationID == orgID && v.Email == email {
+			return v, nil
+		}
+	}
+	return User{}, ErrNotFound
 }

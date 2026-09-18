@@ -5,11 +5,21 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 )
 
-type Handler struct{ service *Service }
+type Handler struct {
+	service     *Service
+	tokenSecret string
+}
 
-func NewHandler(service *Service) *Handler { return &Handler{service: service} }
+func NewHandler(service *Service, tokenSecret ...string) *Handler {
+	secret := ""
+	if len(tokenSecret) > 0 {
+		secret = tokenSecret[0]
+	}
+	return &Handler{service: service, tokenSecret: secret}
+}
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
@@ -19,6 +29,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) >= 2 && parts[0] == "organizations" {
 		orgID := parts[1]
+		if len(parts) == 3 && parts[2] == "sessions" && r.Method == http.MethodPost {
+			h.login(w, r, orgID)
+			return
+		}
 		if len(parts) == 3 && parts[2] == "users" {
 			if r.Method == http.MethodPost {
 				h.createUser(w, r, orgID)
@@ -41,6 +55,27 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.NotFound(w, r)
+}
+func (h *Handler) login(w http.ResponseWriter, r *http.Request, orgID string) {
+	if h.tokenSecret == "" {
+		writeError(w, http.StatusServiceUnavailable, "token service unavailable")
+		return
+	}
+	var in LoginInput
+	if !decode(w, r, &in) {
+		return
+	}
+	u, err := h.service.Authenticate(orgID, in.Email, in.Password)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+	token, err := IssueToken(h.tokenSecret, Claims{UserID: u.ID, OrganizationID: orgID, ExpiresAt: h.service.now().Add(24 * time.Hour).Unix()})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "token creation failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"access_token": token, "token_type": "Bearer", "expires_in": 86400})
 }
 
 func decode(w http.ResponseWriter, r *http.Request, dst interface{}) bool {

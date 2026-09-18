@@ -85,7 +85,7 @@ func main() {
 	exportHandler := export.NewHandler(orderService, inventoryService)
 	importerHandler := importer.NewHandler()
 	metrics := httpx.NewMetrics()
-	base := apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler, importer: importerHandler, metrics: metrics, readiness: httpx.ReadinessHandler(db)}
+	base := apiHandler{auth: auth.NewHandler(service, cfg.AuthTokenSecret), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler, importer: importerHandler, metrics: metrics, readiness: httpx.ReadinessHandler(db)}
 	limiter := httpx.NewRateLimiter(120, time.Minute)
 	handler := httpx.Chain(httpx.SecurityHeaders(httpx.MaxBodyBytes(2<<20, limiter.Middleware(metrics.Wrap(base)))))
 

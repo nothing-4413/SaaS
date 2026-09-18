@@ -10,7 +10,7 @@ func TestRequirePermission(t *testing.T) {
 	s := NewService(NewMemoryStore())
 	o, _ := s.CreateOrganization(CreateOrganizationInput{Name: "A"})
 	r, _ := s.CreateRole(o.ID, CreateRoleInput{Name: "writer", Permissions: []Permission{PermissionUserWrite}})
-	u, _ := s.CreateUser(o.ID, CreateUserInput{Email: "u@x.com", Name: "U", RoleIDs: []string{r.ID}})
+	u, _ := s.CreateUser(o.ID, CreateUserInput{Email: "u@x.com", Name: "U", Password: "password123", RoleIDs: []string{r.ID}})
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
 	h := RequirePermission(s, PermissionUserWrite, next)
 	req := httptest.NewRequest("GET", "/", nil)

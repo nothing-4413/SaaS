@@ -29,6 +29,7 @@ type User struct {
 	Email          string    `json:"email"`
 	Name           string    `json:"name"`
 	RoleIDs        []string  `json:"role_ids"`
+	PasswordHash   string    `json:"-"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -37,9 +38,15 @@ type CreateOrganizationInput struct {
 }
 
 type CreateUserInput struct {
-	Email   string   `json:"email"`
-	Name    string   `json:"name"`
-	RoleIDs []string `json:"role_ids"`
+	Email    string   `json:"email"`
+	Name     string   `json:"name"`
+	Password string   `json:"password"`
+	RoleIDs  []string `json:"role_ids"`
+}
+
+type LoginInput struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type CreateRoleInput struct {

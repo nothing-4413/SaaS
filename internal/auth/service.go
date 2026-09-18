@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nothing-4413/saas/internal/platform/idgen"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var ErrInvalidInput = errors.New("invalid input")
@@ -43,7 +44,7 @@ func (s *Service) CreateUser(orgID string, in CreateUserInput) (User, error) {
 	}
 	email := strings.ToLower(strings.TrimSpace(in.Email))
 	name := strings.TrimSpace(in.Name)
-	if email == "" || name == "" {
+	if email == "" || name == "" || len(in.Password) < 8 {
 		return User{}, ErrInvalidInput
 	}
 	for _, roleID := range in.RoleIDs {
@@ -52,8 +53,26 @@ func (s *Service) CreateUser(orgID string, in CreateUserInput) (User, error) {
 			return User{}, ErrInvalidInput
 		}
 	}
-	v := User{ID: s.id(), OrganizationID: orgID, Email: email, Name: name, RoleIDs: append([]string(nil), in.RoleIDs...), CreatedAt: s.now().UTC()}
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return User{}, err
+	}
+	v := User{ID: s.id(), OrganizationID: orgID, Email: email, Name: name, PasswordHash: string(hash), RoleIDs: append([]string(nil), in.RoleIDs...), CreatedAt: s.now().UTC()}
 	return v, s.store.CreateUser(v)
+}
+func (s *Service) Authenticate(org, email, password string) (User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if org == "" || email == "" || password == "" {
+		return User{}, ErrInvalidInput
+	}
+	u, err := s.store.FindUserByEmail(org, email)
+	if err != nil {
+		return User{}, ErrNotFound
+	}
+	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
+		return User{}, ErrNotFound
+	}
+	return u, nil
 }
 func (s *Service) ListUsers(orgID string) []User { return s.store.ListUsers(orgID) }
 func (s *Service) ListRoles(orgID string) []Role { return s.store.ListRoles(orgID) }
