@@ -77,7 +77,11 @@ func (s *PostgresStore) CreateAtomic(v Order) (Order, error) {
 		}
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO orders (id,organization_id,idempotency_key,status,total_cents,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, v.ID, v.OrganizationID, v.IdempotencyKey, v.Status, v.TotalCents, v.CreatedAt, v.UpdatedAt); err != nil {
-		return Order{}, orderPGError(err)
+		if errors.Is(orderPGError(err), ErrConflict) {
+			_ = tx.Rollback()
+			return s.FindByKey(v.OrganizationID, v.IdempotencyKey)
+		}
+		return Order{}, err
 	}
 	for _, line := range v.Lines {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO order_lines (order_id,organization_id,warehouse_id,sku_id,quantity,unit_price_cents) VALUES ($1,$2,$3,$4,$5,$6)`, v.ID, v.OrganizationID, line.WarehouseID, line.SKUID, line.Quantity, line.UnitPriceCents); err != nil {
@@ -122,7 +126,7 @@ func (s *PostgresStore) TransitionAtomic(org, id string, target Status, now time
 	if err != nil {
 		return Order{}, err
 	}
-	value.Lines = s.lines(id)
+	value.Lines = linesTx(ctx, tx, id)
 	if value.Status == target {
 		_ = tx.Rollback()
 		return value, nil
@@ -175,6 +179,22 @@ func (s *PostgresStore) TransitionAtomic(org, id string, target Status, now time
 		return Order{}, err
 	}
 	return value, nil
+}
+
+func linesTx(ctx context.Context, tx *sql.Tx, id string) []Line {
+	rows, err := tx.QueryContext(ctx, `SELECT sku_id,warehouse_id,quantity,unit_price_cents FROM order_lines WHERE order_id=$1 ORDER BY id`, id)
+	if err != nil {
+		return []Line{}
+	}
+	defer rows.Close()
+	lines := []Line{}
+	for rows.Next() {
+		var line Line
+		if rows.Scan(&line.SKUID, &line.WarehouseID, &line.Quantity, &line.UnitPriceCents) == nil {
+			lines = append(lines, line)
+		}
+	}
+	return lines
 }
 func (s *PostgresStore) Create(v Order) error {
 	ctx := context.Background()

@@ -73,7 +73,11 @@ func (s *PostgresStore) CreateDocumentAtomic(v Document) (Document, error) {
 		}
 	}
 	if _, err = tx.ExecContext(ctx, `INSERT INTO inventory_documents (id,organization_id,document_type,idempotency_key,created_at) VALUES ($1,$2,$3,$4,$5)`, v.ID, v.OrganizationID, v.Type, v.IdempotencyKey, v.CreatedAt); err != nil {
-		return Document{}, inventoryPGError(err)
+		if errors.Is(inventoryPGError(err), ErrConflict) {
+			_ = tx.Rollback()
+			return s.FindDocumentByKey(v.OrganizationID, v.Type, v.IdempotencyKey)
+		}
+		return Document{}, err
 	}
 	for _, line := range v.Lines {
 		if _, err = tx.ExecContext(ctx, `INSERT INTO inventory_document_lines (organization_id,document_id,warehouse_id,sku_id,quantity) VALUES ($1,$2,$3,$4,$5)`, v.OrganizationID, v.ID, line.WarehouseID, line.SKUID, line.Quantity); err != nil {
