@@ -66,6 +66,9 @@ func (s *Service) Create(org string, in CreateInput) (Order, error) {
 	now := s.now().UTC()
 	v := Order{ID: id, OrganizationID: org, IdempotencyKey: in.IdempotencyKey, Status: StatusPending, Lines: append([]Line(nil), in.Lines...), TotalCents: total, CreatedAt: now, UpdatedAt: now}
 	if e := s.store.Create(v); e != nil {
+		for i, l := range v.Lines {
+			_, _ = s.inventory.Release(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: v.ID + ":store-rollback:" + fmt.Sprint(i)})
+		}
 		return Order{}, e
 	}
 	if e := s.emit(v, "order.created"); e != nil {
@@ -107,6 +110,10 @@ func (s *Service) Confirm(org, id string) (Order, error) {
 	v.Status = StatusConfirmed
 	v.UpdatedAt = s.now().UTC()
 	if e = s.store.Put(v); e != nil {
+		for i, l := range v.Lines {
+			_, _ = s.inventory.Receive(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":put-rollback-receive:" + fmt.Sprint(i)})
+			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":put-rollback-reserve:" + fmt.Sprint(i)})
+		}
 		return Order{}, e
 	}
 	if e = s.emit(v, "order.confirmed"); e != nil {
@@ -141,6 +148,9 @@ func (s *Service) Cancel(org, id string) (Order, error) {
 	v.Status = StatusCancelled
 	v.UpdatedAt = s.now().UTC()
 	if e = s.store.Put(v); e != nil {
+		for i, l := range v.Lines {
+			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":put-rollback-reserve:" + fmt.Sprint(i)})
+		}
 		return Order{}, e
 	}
 	if e = s.emit(v, "order.cancelled"); e != nil {
