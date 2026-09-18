@@ -1,7 +1,10 @@
-.PHONY: run test build fmt docker-up docker-down
+.PHONY: run worker test build fmt docker-up docker-down
 
 run:
 	go run ./cmd/api
+
+worker:
+	go run ./cmd/worker
 
 test:
 	go test ./...

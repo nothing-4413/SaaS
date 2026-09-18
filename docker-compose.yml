@@ -27,6 +27,19 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+  worker:
+    build: .
+    entrypoint: ["/usr/local/bin/saas-worker"]
+    environment:
+      DATABASE_URL: postgres://saas:saas@postgres:5432/saas?sslmode=disable
+      OUTBOX_POLL_INTERVAL_MS: 1000
+      OUTBOX_BATCH_SIZE: 100
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
   postgres:
     image: postgres:16-alpine
     environment:

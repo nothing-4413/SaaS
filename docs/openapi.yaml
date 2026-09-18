@@ -105,6 +105,36 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
       responses: { '200': { description: Audit entry list } }
+  /organizations/{organizationId}/webhooks:
+    get:
+      summary: List webhook subscriptions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      responses: { '200': { description: Webhook subscription list } }
+    post:
+      summary: Create a webhook subscription
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, secret, event_types]
+              properties:
+                url: { type: string, format: uri }
+                secret: { type: string, minLength: 16 }
+                event_types: { type: array, items: { type: string } }
+      responses: { '201': { description: Created }, '400': { description: Invalid input } }
+  /organizations/{organizationId}/webhooks/{webhookId}:
+    delete:
+      summary: Delete a webhook subscription
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { name: webhookId, in: path, required: true, schema: { type: string } }
+      responses: { '204': { description: Deleted }, '404': { description: Not found } }
 components:
   securitySchemes:
     bearerAuth:

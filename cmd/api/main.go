@@ -22,12 +22,13 @@ import (
 	"github.com/nothing-4413/saas/internal/platform/postgres"
 	"github.com/nothing-4413/saas/internal/product"
 	"github.com/nothing-4413/saas/internal/report"
+	"github.com/nothing-4413/saas/internal/webhook"
 )
 
 type apiHandler struct {
-	authPublic, userRead, userWrite, roleManage                http.Handler
-	product, inventory, order, report, export, importer, audit http.Handler
-	metrics, readiness                                         http.Handler
+	authPublic, userRead, userWrite, roleManage                         http.Handler
+	product, inventory, order, report, export, importer, audit, webhook http.Handler
+	metrics, readiness                                                  http.Handler
 }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +86,10 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.audit.ServeHTTP(w, r)
 		return
 	}
+	if strings.Contains(path, "/webhooks") {
+		h.webhook.ServeHTTP(w, r)
+		return
+	}
 	if strings.Contains(path, "/products") || strings.Contains(path, "/warehouses") {
 		h.product.ServeHTTP(w, r)
 		return
@@ -113,6 +118,7 @@ func main() {
 	metrics := httpx.NewMetrics()
 	authHandler := auth.NewHandler(service, cfg.AuthTokenSecret)
 	auditService := audit.NewService(audit.NewPostgresStore(db))
+	webhookService := webhook.NewSubscriptionService(webhook.NewPostgresStore(db), webhook.Sender{})
 	protect := func(permission auth.Permission, handler http.Handler) http.Handler {
 		return auth.RequireTokenPermission(service, cfg.AuthTokenSecret, permission, audit.Middleware(auditService, handler))
 	}
@@ -128,6 +134,7 @@ func main() {
 		export:     protect(auth.PermissionReportRead, exportHandler),
 		importer:   protect(auth.PermissionInventoryManage, importerHandler),
 		audit:      protect(auth.PermissionAuditRead, audit.NewHandler(auditService)),
+		webhook:    protect(auth.PermissionWebhookManage, webhook.NewHandler(webhookService)),
 		metrics:    metrics,
 		readiness:  httpx.ReadinessHandler(db),
 	}

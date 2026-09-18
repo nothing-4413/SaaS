@@ -98,6 +98,8 @@ GitHub Actions 会在每次提交和 Pull Request 上使用官方 Go 工具链�
 
 `internal/webhook` 提供带 HMAC-SHA256 签名的 HTTP 推送：请求包含 `X-Webhook-Event`、`X-Webhook-Id`、`X-Idempotency-Key` 和 `X-Webhook-Signature`，默认超时 10 秒，非 2xx 响应会返回错误交给 Outbox 重试。
 
+Webhook 订阅通过 `POST/GET /organizations/{id}/webhooks` 和 `DELETE /organizations/{id}/webhooks/{webhookId}` 管理，要求 `webhook:manage` 权限。创建时需提供 URL、至少 16 字符的签名密钥和事件类型列表（`*` 表示全部）。`cmd/worker` 持续领取 Outbox 事件并向匹配订阅投递，Compose 默认同时启动该 Worker；可通过 `OUTBOX_POLL_INTERVAL_MS` 和 `OUTBOX_BATCH_SIZE` 调整吞吐。
+
 ## 库存预警
 
 `internal/alert` 扫描组织库存，将低于阈值的库存写入 Outbox 事件 `stock.low`；事件按库存更新时间和可用量去重，重复扫描不会重复产生告警。

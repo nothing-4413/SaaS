@@ -13,6 +13,7 @@ const (
 	PermissionOrderManage     Permission = "order:manage"
 	PermissionReportRead      Permission = "report:read"
 	PermissionAuditRead       Permission = "audit:read"
+	PermissionWebhookManage   Permission = "webhook:manage"
 )
 
 var AllPermissions = []Permission{
@@ -24,6 +25,7 @@ var AllPermissions = []Permission{
 	PermissionOrderManage,
 	PermissionReportRead,
 	PermissionAuditRead,
+	PermissionWebhookManage,
 }
 
 type Organization struct {
