@@ -79,7 +79,7 @@ func main() {
 	inventoryService := inventory.NewService(inventory.NewPostgresStore(db))
 	inventoryHandler := inventory.NewHandler(inventoryService)
 	orderService := order.NewService(order.NewPostgresStore(db), inventoryService)
-	orderService.SetEventService(outbox.NewService(outbox.NewMemoryStore()))
+	orderService.SetEventService(outbox.NewService(outbox.NewPostgresStore(db)))
 	orderHandler := order.NewHandler(orderService)
 	reportHandler := report.NewHandler(report.NewService(orderService, inventoryService))
 	exportHandler := export.NewHandler(orderService, inventoryService)

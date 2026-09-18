@@ -130,6 +130,7 @@ OpenAPI 文档已包含 Bearer Token 安全方案，以及报表、库存和 CSV
 商品、SKU 和仓库模块运行时也使用 PostgreSQL Store，组织内编码与名称唯一性由数据库约束保证。
 库存变更运行时使用 PostgreSQL 事务、`FOR UPDATE` 行锁和数据库级幂等操作表，可在多 API 实例下防止超卖与重复扣减。
 销售订单与明细运行时使用 PostgreSQL Store，并在同一事务中创建；组织范围幂等键由数据库唯一约束保证。
+Outbox 运行时使用 PostgreSQL `FOR UPDATE SKIP LOCKED` 领取事件，支持多消费者并行处理和租约超时恢复。
 
 项目采用 MIT License，贡献规范见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
