@@ -73,7 +73,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	store := auth.NewMemoryStore()
+	store := auth.NewPostgresStore(db)
 	service := auth.NewService(store)
 	productHandler := product.NewHandler(product.NewService(product.NewMemoryStore()))
 	inventoryService := inventory.NewService(inventory.NewMemoryStore())
