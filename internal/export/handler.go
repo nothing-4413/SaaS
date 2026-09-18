@@ -17,7 +17,9 @@ type Handler struct {
 
 func NewHandler(orders interface{ List(string) []order.Order }, stocks interface {
 	List(string) []inventory.Stock
-}) *Handler { return &Handler{orders: orders, stocks: stocks} }
+}) *Handler {
+	return &Handler{orders: orders, stocks: stocks}
+}
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	if len(p) == 5 && p[0] == "organizations" && p[2] == "exports" && r.Method == http.MethodGet {

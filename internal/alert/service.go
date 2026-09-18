@@ -20,7 +20,9 @@ type Service struct {
 
 func NewService(stocks interface {
 	List(string) []inventory.Stock
-}, events *outbox.Service) *Service { return &Service{stocks: stocks, events: events} }
+}, events *outbox.Service) *Service {
+	return &Service{stocks: stocks, events: events}
+}
 func (s *Service) Scan(org string, threshold int64) (int, error) {
 	if strings.TrimSpace(org) == "" || threshold < 0 || s.stocks == nil || s.events == nil {
 		return 0, ErrInvalidInput
