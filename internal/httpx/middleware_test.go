@@ -40,3 +40,14 @@ func TestResponseWriterKeepsFirstStatus(t *testing.T) {
 		t.Fatalf("status=%d recorded=%d", w.Code, rw.status)
 	}
 }
+
+func TestRequestIDRejectsControlCharacters(t *testing.T) {
+	h := RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("X-Request-ID", "bad\nvalue")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Header().Get("X-Request-ID") == "bad\nvalue" || w.Header().Get("X-Request-ID") == "" {
+		t.Fatal("invalid request id accepted")
+	}
+}

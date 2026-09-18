@@ -6,12 +6,25 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"unicode"
 )
+
+func validRequestID(id string) bool {
+	if len(id) == 0 || len(id) > 128 {
+		return false
+	}
+	for _, r := range id {
+		if unicode.IsControl(r) {
+			return false
+		}
+	}
+	return true
+}
 
 func RequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-ID")
-		if id == "" {
+		if !validRequestID(id) {
 			var b [8]byte
 			_, _ = rand.Read(b[:])
 			id = hex.EncodeToString(b[:])
