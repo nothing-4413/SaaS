@@ -17,7 +17,7 @@ func testHandler() http.Handler {
 	authService := auth.NewService(auth.NewMemoryStore())
 	inv := inventory.NewService(inventory.NewMemoryStore())
 	orders := order.NewService(order.NewMemoryStore(), inv)
-	return apiHandler{auth: auth.NewHandler(authService), product: product.NewHandler(product.NewService(product.NewMemoryStore())), inventory: inventory.NewHandler(inv), order: order.NewHandler(orders), report: report.NewHandler(report.NewService(orders, inv))}
+	return apiHandler{auth: auth.NewHandler(authService), product: product.NewHandler(product.NewService(product.NewMemoryStore())), inventory: inventory.NewHandler(inv), order: order.NewHandler(orders), report: report.NewHandler(report.NewService(orders, inv)), readiness: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })}
 }
 func TestHealthAndOrganizationRoutes(t *testing.T) {
 	h := testHandler()

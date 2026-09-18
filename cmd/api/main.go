@@ -18,16 +18,21 @@ import (
 	"github.com/nothing-4413/saas/internal/inventory"
 	"github.com/nothing-4413/saas/internal/order"
 	"github.com/nothing-4413/saas/internal/outbox"
+	"github.com/nothing-4413/saas/internal/platform/postgres"
 	"github.com/nothing-4413/saas/internal/product"
 	"github.com/nothing-4413/saas/internal/report"
 )
 
-type apiHandler struct{ auth, product, inventory, order, report, export, importer, metrics http.Handler }
+type apiHandler struct{ auth, product, inventory, order, report, export, importer, metrics, readiness http.Handler }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
 	if path == "healthz" && r.Method == http.MethodGet {
 		httpx.HealthHandler(w, r)
+		return
+	}
+	if path == "readyz" && r.Method == http.MethodGet {
+		h.readiness.ServeHTTP(w, r)
 		return
 	}
 	if path == "metrics" && r.Method == http.MethodGet {
@@ -63,6 +68,11 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	cfg := config.Load()
+	db, err := postgres.Open(context.Background(), cfg.PostgresURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 	store := auth.NewMemoryStore()
 	service := auth.NewService(store)
 	productHandler := product.NewHandler(product.NewService(product.NewMemoryStore()))
@@ -75,7 +85,7 @@ func main() {
 	exportHandler := export.NewHandler(orderService, inventoryService)
 	importerHandler := importer.NewHandler()
 	metrics := httpx.NewMetrics()
-	base := apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler, importer: importerHandler, metrics: metrics}
+	base := apiHandler{auth: auth.NewHandler(service), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler, importer: importerHandler, metrics: metrics, readiness: httpx.ReadinessHandler(db)}
 	limiter := httpx.NewRateLimiter(120, time.Minute)
 	handler := httpx.Chain(httpx.SecurityHeaders(httpx.MaxBodyBytes(2<<20, limiter.Middleware(metrics.Wrap(base)))))
 

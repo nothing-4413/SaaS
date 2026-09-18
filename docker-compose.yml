@@ -7,6 +7,8 @@ services:
       REDIS_URL: redis://redis:6379/0
     ports: ["8080:8080"]
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -16,6 +18,14 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+  migrate:
+    image: migrate/migrate:v4.18.3
+    volumes:
+      - ./migrations:/migrations:ro
+    command: ["-path", "/migrations", "-database", "postgres://saas:saas@postgres:5432/saas?sslmode=disable", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
   postgres:
     image: postgres:16-alpine
     environment:
