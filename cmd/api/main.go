@@ -76,7 +76,7 @@ func main() {
 	store := auth.NewPostgresStore(db)
 	service := auth.NewService(store)
 	productHandler := product.NewHandler(product.NewService(product.NewPostgresStore(db)))
-	inventoryService := inventory.NewService(inventory.NewMemoryStore())
+	inventoryService := inventory.NewService(inventory.NewPostgresStore(db))
 	inventoryHandler := inventory.NewHandler(inventoryService)
 	orderService := order.NewService(order.NewMemoryStore(), inventoryService)
 	orderService.SetEventService(outbox.NewService(outbox.NewMemoryStore()))

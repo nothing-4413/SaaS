@@ -3,6 +3,7 @@ package inventory
 import (
 	"errors"
 	"sync"
+	"time"
 )
 
 var (
@@ -20,6 +21,10 @@ type Store interface {
 	GetDocument(string) (Document, error)
 	ListDocuments(string, DocumentType) []Document
 	FindDocumentByKey(string, DocumentType, string) (Document, error)
+}
+
+type AtomicStore interface {
+	Apply(org, warehouse, sku, action string, quantity int64, idempotencyKey string, at time.Time) (Stock, error)
 }
 
 type MemoryStore struct {

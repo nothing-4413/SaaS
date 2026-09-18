@@ -1,6 +1,7 @@
 package inventory
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -32,6 +33,9 @@ func (s *Service) List(org string) []Stock { return s.store.List(org) }
 func (s *Service) apply(org, warehouse, sku, action string, in StockOperationInput) (Stock, error) {
 	if strings.TrimSpace(org) == "" || strings.TrimSpace(warehouse) == "" || strings.TrimSpace(sku) == "" || in.Quantity <= 0 || strings.TrimSpace(in.IdempotencyKey) == "" {
 		return Stock{}, ErrInvalidInput
+	}
+	if store, ok := s.store.(AtomicStore); ok {
+		return store.Apply(org, warehouse, sku, action, in.Quantity, in.IdempotencyKey, s.now().UTC())
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -129,9 +133,10 @@ func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput)
 		}
 	}
 	id := idgen.New()
+	operationPrefix := "document:" + string(typ) + ":" + in.IdempotencyKey
 	done := 0
 	for i, l := range in.Lines {
-		key := id + ":" + string(typ) + ":" + fmt.Sprint(i)
+		key := operationPrefix + ":line:" + fmt.Sprint(i)
 		var e error
 		if typ == DocumentReceipt {
 			_, e = s.Receive(org, l.WarehouseID, l.SKUID, StockOperationInput{Quantity: l.Quantity, IdempotencyKey: key})
@@ -142,9 +147,9 @@ func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput)
 			for j := 0; j < done; j++ {
 				p := in.Lines[j]
 				if typ == DocumentReceipt {
-					_, _ = s.Deduct(org, p.WarehouseID, p.SKUID, StockOperationInput{Quantity: p.Quantity, IdempotencyKey: id + ":rollback:" + fmt.Sprint(j)})
+					_, _ = s.Deduct(org, p.WarehouseID, p.SKUID, StockOperationInput{Quantity: p.Quantity, IdempotencyKey: operationPrefix + ":rollback:" + fmt.Sprint(j)})
 				} else {
-					_, _ = s.Receive(org, p.WarehouseID, p.SKUID, StockOperationInput{Quantity: p.Quantity, IdempotencyKey: id + ":rollback:" + fmt.Sprint(j)})
+					_, _ = s.Receive(org, p.WarehouseID, p.SKUID, StockOperationInput{Quantity: p.Quantity, IdempotencyKey: operationPrefix + ":rollback:" + fmt.Sprint(j)})
 				}
 			}
 			return Document{}, e
@@ -153,6 +158,11 @@ func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput)
 	}
 	v := Document{ID: id, OrganizationID: org, Type: typ, IdempotencyKey: in.IdempotencyKey, Lines: append([]DocumentLine(nil), in.Lines...), CreatedAt: s.now().UTC()}
 	if e := s.store.CreateDocument(v); e != nil {
+		if errors.Is(e, ErrConflict) {
+			if old, findErr := s.store.FindDocumentByKey(org, typ, in.IdempotencyKey); findErr == nil {
+				return old, nil
+			}
+		}
 		return Document{}, e
 	}
 	return v, nil
