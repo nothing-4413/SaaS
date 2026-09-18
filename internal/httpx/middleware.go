@@ -27,6 +27,9 @@ type responseWriter struct {
 }
 
 func (w *responseWriter) WriteHeader(status int) {
+	if w.status != 0 {
+		return
+	}
 	w.status = status
 	w.ResponseWriter.WriteHeader(status)
 }

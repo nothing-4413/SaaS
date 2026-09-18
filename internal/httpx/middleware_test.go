@@ -30,3 +30,13 @@ func TestAccessLogDefaultsStatusToOK(t *testing.T) {
 		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
 	}
 }
+
+func TestResponseWriterKeepsFirstStatus(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := &responseWriter{ResponseWriter: w}
+	rw.WriteHeader(http.StatusCreated)
+	rw.WriteHeader(http.StatusInternalServerError)
+	if w.Code != http.StatusCreated || rw.status != http.StatusCreated {
+		t.Fatalf("status=%d recorded=%d", w.Code, rw.status)
+	}
+}
