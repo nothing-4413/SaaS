@@ -23,7 +23,11 @@ import (
 	"github.com/nothing-4413/saas/internal/report"
 )
 
-type apiHandler struct{ auth, product, inventory, order, report, export, importer, metrics, readiness http.Handler }
+type apiHandler struct {
+	authPublic, userRead, userWrite, roleManage         http.Handler
+	product, inventory, order, report, export, importer http.Handler
+	metrics, readiness                                  http.Handler
+}
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
@@ -37,6 +41,23 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if path == "metrics" && r.Method == http.MethodGet {
 		h.metrics.ServeHTTP(w, r)
+		return
+	}
+	parts := strings.Split(path, "/")
+	if path == "organizations" || (len(parts) == 3 && parts[0] == "organizations" && parts[2] == "sessions") {
+		h.authPublic.ServeHTTP(w, r)
+		return
+	}
+	if len(parts) == 3 && parts[0] == "organizations" && parts[2] == "users" {
+		if r.Method == http.MethodGet {
+			h.userRead.ServeHTTP(w, r)
+		} else {
+			h.userWrite.ServeHTTP(w, r)
+		}
+		return
+	}
+	if len(parts) == 3 && parts[0] == "organizations" && parts[2] == "roles" {
+		h.roleManage.ServeHTTP(w, r)
 		return
 	}
 	if strings.Contains(path, "/stock") || strings.HasSuffix(path, "/stocks") || strings.Contains(path, "/receipts") || strings.Contains(path, "/issues") {
@@ -63,7 +84,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.product.ServeHTTP(w, r)
 		return
 	}
-	h.auth.ServeHTTP(w, r)
+	h.authPublic.ServeHTTP(w, r)
 }
 
 func main() {
@@ -85,7 +106,24 @@ func main() {
 	exportHandler := export.NewHandler(orderService, inventoryService)
 	importerHandler := importer.NewHandler()
 	metrics := httpx.NewMetrics()
-	base := apiHandler{auth: auth.NewHandler(service, cfg.AuthTokenSecret), product: productHandler, inventory: inventoryHandler, order: orderHandler, report: reportHandler, export: exportHandler, importer: importerHandler, metrics: metrics, readiness: httpx.ReadinessHandler(db)}
+	authHandler := auth.NewHandler(service, cfg.AuthTokenSecret)
+	protect := func(permission auth.Permission, handler http.Handler) http.Handler {
+		return auth.RequireTokenPermission(service, cfg.AuthTokenSecret, permission, handler)
+	}
+	base := apiHandler{
+		authPublic: authHandler,
+		userRead:   protect(auth.PermissionUserRead, authHandler),
+		userWrite:  protect(auth.PermissionUserWrite, authHandler),
+		roleManage: protect(auth.PermissionRoleManage, authHandler),
+		product:    protect(auth.PermissionProductManage, productHandler),
+		inventory:  protect(auth.PermissionInventoryManage, inventoryHandler),
+		order:      protect(auth.PermissionOrderManage, orderHandler),
+		report:     protect(auth.PermissionReportRead, reportHandler),
+		export:     protect(auth.PermissionReportRead, exportHandler),
+		importer:   protect(auth.PermissionInventoryManage, importerHandler),
+		metrics:    metrics,
+		readiness:  httpx.ReadinessHandler(db),
+	}
 	limiter := httpx.NewRateLimiter(120, time.Minute)
 	handler := httpx.Chain(httpx.SecurityHeaders(httpx.MaxBodyBytes(2<<20, limiter.Middleware(metrics.Wrap(base)))))
 

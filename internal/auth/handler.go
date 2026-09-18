@@ -107,6 +107,10 @@ func (h *Handler) createOrganization(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
+	if strings.TrimSpace(in.OwnerEmail) == "" || strings.TrimSpace(in.OwnerName) == "" || len(in.OwnerPassword) < 8 {
+		writeError(w, http.StatusBadRequest, ErrInvalidInput.Error())
+		return
+	}
 	v, err := h.service.CreateOrganization(in)
 	if err != nil {
 		writeError(w, statusFor(err), err.Error())

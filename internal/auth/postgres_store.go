@@ -23,6 +23,30 @@ func (s *PostgresStore) CreateOrganization(v Organization) error {
 	_, e := s.db.ExecContext(context.Background(), `INSERT INTO organizations (id,name,created_at) VALUES ($1,$2,$3)`, v.ID, v.Name, v.CreatedAt)
 	return pgError(e)
 }
+func (s *PostgresStore) CreateOrganizationOwner(org Organization, role Role, user User) error {
+	permissions, err := json.Marshal(role.Permissions)
+	if err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.Exec(`INSERT INTO organizations (id,name,created_at) VALUES ($1,$2,$3)`, org.ID, org.Name, org.CreatedAt); err != nil {
+		return pgError(err)
+	}
+	if _, err = tx.Exec(`INSERT INTO roles (id,organization_id,name,permissions) VALUES ($1,$2,$3,$4)`, role.ID, role.OrganizationID, role.Name, permissions); err != nil {
+		return pgError(err)
+	}
+	if _, err = tx.Exec(`INSERT INTO users (id,organization_id,email,name,password_hash,created_at) VALUES ($1,$2,$3,$4,$5,$6)`, user.ID, user.OrganizationID, user.Email, user.Name, user.PasswordHash, user.CreatedAt); err != nil {
+		return pgError(err)
+	}
+	if _, err = tx.Exec(`INSERT INTO user_roles (organization_id,user_id,role_id) VALUES ($1,$2,$3)`, org.ID, user.ID, role.ID); err != nil {
+		return pgError(err)
+	}
+	return tx.Commit()
+}
 func (s *PostgresStore) GetOrganization(id string) (Organization, error) {
 	var v Organization
 	e := s.db.QueryRowContext(context.Background(), `SELECT id,name,created_at FROM organizations WHERE id=$1`, id).Scan(&v.ID, &v.Name, &v.CreatedAt)

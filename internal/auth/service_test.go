@@ -1,6 +1,10 @@
 package auth
 
-import "testing"
+import (
+	"testing"
+
+	"golang.org/x/crypto/bcrypt"
+)
 
 func TestUserCannotUseRoleFromAnotherOrganization(t *testing.T) {
 	s := NewService(NewMemoryStore())
@@ -39,5 +43,33 @@ func TestHasPermissionIsTenantScoped(t *testing.T) {
 	}
 	if _, err = s.HasPermission(b.ID, u.ID, PermissionUserWrite); err != ErrNotFound {
 		t.Fatalf("expected tenant isolation, got %v", err)
+	}
+}
+
+func TestCreateOrganizationBootstrapsOwner(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	o, err := s.CreateOrganization(CreateOrganizationInput{Name: "Acme", OwnerEmail: " OWNER@EXAMPLE.COM ", OwnerName: "Owner", OwnerPassword: "password123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := s.Authenticate(o.ID, "owner@example.com", "password123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte("password123")) != nil {
+		t.Fatal("owner password was not hashed")
+	}
+	for _, permission := range AllPermissions {
+		allowed, err := s.HasPermission(o.ID, u.ID, permission)
+		if err != nil || !allowed {
+			t.Fatalf("permission %q missing: allowed=%v err=%v", permission, allowed, err)
+		}
+	}
+}
+
+func TestCreateOrganizationRejectsPartialOwner(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	if _, err := s.CreateOrganization(CreateOrganizationInput{Name: "Acme", OwnerName: "Owner"}); err != ErrInvalidInput {
+		t.Fatalf("expected invalid input, got %v", err)
 	}
 }

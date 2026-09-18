@@ -5,10 +5,24 @@ import "time"
 type Permission string
 
 const (
-	PermissionUserRead   Permission = "user:read"
-	PermissionUserWrite  Permission = "user:write"
-	PermissionRoleManage Permission = "role:manage"
+	PermissionUserRead        Permission = "user:read"
+	PermissionUserWrite       Permission = "user:write"
+	PermissionRoleManage      Permission = "role:manage"
+	PermissionProductManage   Permission = "product:manage"
+	PermissionInventoryManage Permission = "inventory:manage"
+	PermissionOrderManage     Permission = "order:manage"
+	PermissionReportRead      Permission = "report:read"
 )
+
+var AllPermissions = []Permission{
+	PermissionUserRead,
+	PermissionUserWrite,
+	PermissionRoleManage,
+	PermissionProductManage,
+	PermissionInventoryManage,
+	PermissionOrderManage,
+	PermissionReportRead,
+}
 
 type Organization struct {
 	ID        string    `json:"id"`
@@ -34,7 +48,10 @@ type User struct {
 }
 
 type CreateOrganizationInput struct {
-	Name string `json:"name"`
+	Name          string `json:"name"`
+	OwnerEmail    string `json:"owner_email"`
+	OwnerName     string `json:"owner_name"`
+	OwnerPassword string `json:"owner_password"`
 }
 
 type CreateUserInput struct {

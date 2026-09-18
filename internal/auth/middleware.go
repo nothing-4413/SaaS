@@ -45,6 +45,11 @@ func RequireTokenPermission(service *Service, secret string, permission Permissi
 			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return
 		}
+		path := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(path) >= 2 && path[0] == "organizations" && path[1] != claims.OrganizationID {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		allowed, err := service.HasPermission(claims.OrganizationID, claims.UserID, permission)
 		if err != nil || !allowed {
 			http.Error(w, "forbidden", http.StatusForbidden)

@@ -25,6 +25,25 @@ func (s *Service) CreateOrganization(in CreateOrganizationInput) (Organization, 
 		return Organization{}, ErrInvalidInput
 	}
 	v := Organization{ID: s.id(), Name: name, CreatedAt: s.now().UTC()}
+	email := strings.ToLower(strings.TrimSpace(in.OwnerEmail))
+	ownerName := strings.TrimSpace(in.OwnerName)
+	hasOwnerFields := email != "" || ownerName != "" || in.OwnerPassword != ""
+	if hasOwnerFields {
+		if email == "" || ownerName == "" || len(in.OwnerPassword) < 8 {
+			return Organization{}, ErrInvalidInput
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(in.OwnerPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return Organization{}, err
+		}
+		role := Role{ID: s.id(), OrganizationID: v.ID, Name: "owner", Permissions: append([]Permission(nil), AllPermissions...)}
+		user := User{ID: s.id(), OrganizationID: v.ID, Email: email, Name: ownerName, PasswordHash: string(hash), RoleIDs: []string{role.ID}, CreatedAt: v.CreatedAt}
+		store, ok := s.store.(BootstrapStore)
+		if !ok {
+			return Organization{}, ErrInvalidInput
+		}
+		return v, store.CreateOrganizationOwner(v, role, user)
+	}
 	return v, s.store.CreateOrganization(v)
 }
 func (s *Service) CreateRole(orgID string, in CreateRoleInput) (Role, error) {

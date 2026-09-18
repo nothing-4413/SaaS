@@ -22,6 +22,10 @@ type Store interface {
 	FindUserByEmail(string, string) (User, error)
 }
 
+type BootstrapStore interface {
+	CreateOrganizationOwner(Organization, Role, User) error
+}
+
 type MemoryStore struct {
 	mu            sync.RWMutex
 	organizations map[string]Organization
@@ -40,6 +44,22 @@ func (s *MemoryStore) CreateOrganization(v Organization) error {
 		return ErrConflict
 	}
 	s.organizations[v.ID] = v
+	return nil
+}
+func (s *MemoryStore) CreateOrganizationOwner(org Organization, role Role, user User) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.organizations[org.ID]; ok {
+		return ErrConflict
+	}
+	for _, existing := range s.users {
+		if existing.OrganizationID == org.ID && existing.Email == user.Email {
+			return ErrConflict
+		}
+	}
+	s.organizations[org.ID] = org
+	s.roles[role.ID] = role
+	s.users[user.ID] = user
 	return nil
 }
 func (s *MemoryStore) GetOrganization(id string) (Organization, error) {

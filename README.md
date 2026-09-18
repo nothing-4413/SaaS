@@ -10,13 +10,13 @@ go run ./cmd/api
 
 ## API（第一阶段）
 
-- `POST /organizations` 创建组织：`{"name":"Acme"}`
+- `POST /organizations` 创建组织和首位所有者：`{"name":"Acme","owner_email":"owner@example.com","owner_name":"Owner","owner_password":"password123"}`
 - `POST /organizations/{id}/roles` 创建角色
 - `GET /organizations/{id}/roles` 查询角色
 - `POST /organizations/{id}/users` 创建用户（角色必须属于同一组织）
 - `GET /organizations/{id}/users` 查询用户
 
-组织 ID 由服务端生成，所有用户和角色操作都显式绑定组织 ID，避免跨租户关联。
+组织 ID 由服务端生成，创建组织时会在同一数据库事务内建立拥有全部权限的 `owner` 角色和首位用户。所有用户和角色操作都显式绑定组织 ID，避免跨租户关联。
 
 ## 库存 API
 
@@ -60,7 +60,7 @@ go run ./cmd/api
 
 ## 权限中间件与 API 文档
 
-`auth.RequirePermission` 可包裹任意 HTTP handler，通过 `X-Organization-ID` 和 `X-User-ID` 解析当前身份并执行组织级权限校验；缺少身份返回 401，跨组织或无权限返回 403。
+除组织创建、登录和健康检查外，业务 API 均要求 Bearer Token。运行时按 `user:read`、`user:write`、`role:manage`、`product:manage`、`inventory:manage`、`order:manage` 和 `report:read` 权限保护对应路由，并拒绝令牌租户与 URL 租户不一致的请求。
 
 完整接口草案见 [docs/openapi.yaml](docs/openapi.yaml)。
 
