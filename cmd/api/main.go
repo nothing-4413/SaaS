@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nothing-4413/saas/internal/alert"
 	"github.com/nothing-4413/saas/internal/audit"
 	"github.com/nothing-4413/saas/internal/auth"
 	"github.com/nothing-4413/saas/internal/config"
@@ -26,9 +27,9 @@ import (
 )
 
 type apiHandler struct {
-	authPublic, userRead, userWrite, roleManage                         http.Handler
-	product, inventory, order, report, export, importer, audit, webhook http.Handler
-	metrics, readiness                                                  http.Handler
+	authPublic, userRead, userWrite, roleManage                                http.Handler
+	product, inventory, order, report, export, importer, audit, webhook, alert http.Handler
+	metrics, readiness                                                         http.Handler
 }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +61,10 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) == 3 && parts[0] == "organizations" && parts[2] == "roles" {
 		h.roleManage.ServeHTTP(w, r)
+		return
+	}
+	if len(parts) == 4 && parts[0] == "organizations" && parts[2] == "alerts" && parts[3] == "stock" {
+		h.alert.ServeHTTP(w, r)
 		return
 	}
 	if strings.Contains(path, "/stock") || strings.HasSuffix(path, "/stocks") || strings.Contains(path, "/receipts") || strings.Contains(path, "/issues") {
@@ -119,6 +124,7 @@ func main() {
 	authHandler := auth.NewHandler(service, cfg.AuthTokenSecret)
 	auditService := audit.NewService(audit.NewPostgresStore(db))
 	webhookService := webhook.NewSubscriptionService(webhook.NewPostgresStore(db), webhook.Sender{})
+	alertHandler := alert.NewHandler(alert.NewRuleService(alert.NewPostgresStore(db)))
 	protect := func(permission auth.Permission, handler http.Handler) http.Handler {
 		return auth.RequireTokenPermission(service, cfg.AuthTokenSecret, permission, audit.Middleware(auditService, handler))
 	}
@@ -135,6 +141,7 @@ func main() {
 		importer:   protect(auth.PermissionInventoryManage, importerHandler),
 		audit:      protect(auth.PermissionAuditRead, audit.NewHandler(auditService)),
 		webhook:    protect(auth.PermissionWebhookManage, webhook.NewHandler(webhookService)),
+		alert:      protect(auth.PermissionInventoryManage, alertHandler),
 		metrics:    metrics,
 		readiness:  httpx.ReadinessHandler(db),
 	}

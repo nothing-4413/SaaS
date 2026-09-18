@@ -104,6 +104,8 @@ Webhook 订阅通过 `POST/GET /organizations/{id}/webhooks` 和 `DELETE /organi
 
 `internal/alert` 扫描组织库存，将低于阈值的库存写入 Outbox 事件 `stock.low`；事件按库存更新时间和可用量去重，重复扫描不会重复产生告警。
 
+租户通过 `GET/PUT /organizations/{id}/alerts/stock` 查询或设置预警阈值与启用状态。Worker 默认每 60 秒扫描所有启用规则，可使用 `STOCK_ALERT_INTERVAL_SECONDS` 调整频率。
+
 ## CSV 导出
 
 `internal/export` 提供订单和库存 CSV 导出函数，可接入后台任务或 HTTP 下载接口，输出包含组织、状态、金额和库存数量等关键字段。

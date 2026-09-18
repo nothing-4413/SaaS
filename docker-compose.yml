@@ -34,6 +34,7 @@ services:
       DATABASE_URL: postgres://saas:saas@postgres:5432/saas?sslmode=disable
       OUTBOX_POLL_INTERVAL_MS: 1000
       OUTBOX_BATCH_SIZE: 100
+      STOCK_ALERT_INTERVAL_SECONDS: 60
     depends_on:
       migrate:
         condition: service_completed_successfully

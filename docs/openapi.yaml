@@ -135,6 +135,27 @@ paths:
         - { $ref: '#/components/parameters/OrganizationId' }
         - { name: webhookId, in: path, required: true, schema: { type: string } }
       responses: { '204': { description: Deleted }, '404': { description: Not found } }
+  /organizations/{organizationId}/alerts/stock:
+    get:
+      summary: Get the low-stock alert rule
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      responses: { '200': { description: Alert rule }, '404': { description: Not configured } }
+    put:
+      summary: Create or update the low-stock alert rule
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [threshold, enabled]
+              properties:
+                threshold: { type: integer, format: int64, minimum: 0 }
+                enabled: { type: boolean }
+      responses: { '200': { description: Alert rule }, '400': { description: Invalid input } }
 components:
   securitySchemes:
     bearerAuth:
