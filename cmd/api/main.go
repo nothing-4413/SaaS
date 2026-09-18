@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nothing-4413/saas/internal/audit"
 	"github.com/nothing-4413/saas/internal/auth"
 	"github.com/nothing-4413/saas/internal/config"
 	"github.com/nothing-4413/saas/internal/export"
@@ -24,9 +25,9 @@ import (
 )
 
 type apiHandler struct {
-	authPublic, userRead, userWrite, roleManage         http.Handler
-	product, inventory, order, report, export, importer http.Handler
-	metrics, readiness                                  http.Handler
+	authPublic, userRead, userWrite, roleManage                http.Handler
+	product, inventory, order, report, export, importer, audit http.Handler
+	metrics, readiness                                         http.Handler
 }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +81,10 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.importer.ServeHTTP(w, r)
 		return
 	}
+	if strings.Contains(path, "/audit-logs") {
+		h.audit.ServeHTTP(w, r)
+		return
+	}
 	if strings.Contains(path, "/products") || strings.Contains(path, "/warehouses") {
 		h.product.ServeHTTP(w, r)
 		return
@@ -107,8 +112,9 @@ func main() {
 	importerHandler := importer.NewHandler()
 	metrics := httpx.NewMetrics()
 	authHandler := auth.NewHandler(service, cfg.AuthTokenSecret)
+	auditService := audit.NewService(audit.NewPostgresStore(db))
 	protect := func(permission auth.Permission, handler http.Handler) http.Handler {
-		return auth.RequireTokenPermission(service, cfg.AuthTokenSecret, permission, handler)
+		return auth.RequireTokenPermission(service, cfg.AuthTokenSecret, permission, audit.Middleware(auditService, handler))
 	}
 	base := apiHandler{
 		authPublic: authHandler,
@@ -121,6 +127,7 @@ func main() {
 		report:     protect(auth.PermissionReportRead, reportHandler),
 		export:     protect(auth.PermissionReportRead, exportHandler),
 		importer:   protect(auth.PermissionInventoryManage, importerHandler),
+		audit:      protect(auth.PermissionAuditRead, audit.NewHandler(auditService)),
 		metrics:    metrics,
 		readiness:  httpx.ReadinessHandler(db),
 	}

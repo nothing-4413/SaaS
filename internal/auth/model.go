@@ -12,6 +12,7 @@ const (
 	PermissionInventoryManage Permission = "inventory:manage"
 	PermissionOrderManage     Permission = "order:manage"
 	PermissionReportRead      Permission = "report:read"
+	PermissionAuditRead       Permission = "audit:read"
 )
 
 var AllPermissions = []Permission{
@@ -22,6 +23,7 @@ var AllPermissions = []Permission{
 	PermissionInventoryManage,
 	PermissionOrderManage,
 	PermissionReportRead,
+	PermissionAuditRead,
 }
 
 type Organization struct {

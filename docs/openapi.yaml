@@ -99,6 +99,12 @@ paths:
           text/csv:
             schema: { type: string }
       responses: { '200': { description: Imported stock rows }, '400': { description: Invalid CSV } }
+  /organizations/{organizationId}/audit-logs:
+    get:
+      summary: List the latest tenant audit entries
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      responses: { '200': { description: Audit entry list } }
 components:
   securitySchemes:
     bearerAuth:
