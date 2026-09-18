@@ -49,3 +49,41 @@ func TestConcurrentDocumentsHaveUniqueIDs(t *testing.T) {
 		seen[id] = true
 	}
 }
+
+func TestConcurrentSameDocumentIsIdempotent(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	var wg sync.WaitGroup
+	ids := make(chan string, 2)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			v, err := s.CreateReceipt("o", DocumentInput{IdempotencyKey: "same", Lines: []DocumentLine{{WarehouseID: "w", SKUID: "s", Quantity: 1}}})
+			if err != nil {
+				t.Errorf("create: %v", err)
+				return
+			}
+			ids <- v.ID
+		}()
+	}
+	wg.Wait()
+	close(ids)
+	var first string
+	count := 0
+	for id := range ids {
+		if first == "" {
+			first = id
+		}
+		if id != first {
+			t.Fatalf("different ids: %s and %s", first, id)
+		}
+		count++
+	}
+	if count != 2 {
+		t.Fatalf("completed=%d", count)
+	}
+	stock, _ := s.Get("o", "w", "s")
+	if stock.OnHand != 1 {
+		t.Fatalf("stock changed twice: %+v", stock)
+	}
+}

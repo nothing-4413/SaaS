@@ -16,6 +16,7 @@ type Service struct {
 	store      Store
 	now        func() time.Time
 	mu         sync.Mutex
+	documentMu sync.Mutex
 	operations map[string]operation
 	seq        uint64
 }
@@ -114,6 +115,8 @@ func (s *Service) GetDocument(org, id string) (Document, error) {
 }
 
 func (s *Service) createDocument(org string, typ DocumentType, in DocumentInput) (Document, error) {
+	s.documentMu.Lock()
+	defer s.documentMu.Unlock()
 	if strings.TrimSpace(org) == "" || strings.TrimSpace(in.IdempotencyKey) == "" || len(in.Lines) == 0 {
 		return Document{}, ErrInvalidInput
 	}
