@@ -90,7 +90,7 @@ paths:
       responses: { '200': { description: Stock list } }
   /organizations/{organizationId}/imports/stocks:
     post:
-      summary: Validate and import stock CSV
+      summary: Validate and atomically import stock CSV
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
       requestBody:

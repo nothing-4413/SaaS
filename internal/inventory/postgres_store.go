@@ -46,6 +46,25 @@ func (s *PostgresStore) Put(v Stock) error {
 	_, e := s.db.ExecContext(context.Background(), `INSERT INTO inventory_stocks (organization_id,warehouse_id,sku_id,on_hand,reserved,updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (organization_id,warehouse_id,sku_id) DO UPDATE SET on_hand=EXCLUDED.on_hand,reserved=EXCLUDED.reserved,updated_at=EXCLUDED.updated_at`, v.OrganizationID, v.WarehouseID, v.SKUID, v.OnHand, v.Reserved, v.UpdatedAt)
 	return e
 }
+func (s *PostgresStore) ImportStocks(values []Stock, at time.Time) error {
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, value := range values {
+		_, err = tx.ExecContext(context.Background(), `
+			INSERT INTO inventory_stocks (organization_id,warehouse_id,sku_id,on_hand,reserved,updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6)
+			ON CONFLICT (organization_id,warehouse_id,sku_id) DO UPDATE
+			SET on_hand=EXCLUDED.on_hand,reserved=EXCLUDED.reserved,updated_at=EXCLUDED.updated_at`,
+			value.OrganizationID, value.WarehouseID, value.SKUID, value.OnHand, value.Reserved, at)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
 func (s *PostgresStore) List(org string) []Stock {
 	rows, e := s.db.QueryContext(context.Background(), `SELECT organization_id,warehouse_id,sku_id,on_hand,reserved,on_hand-reserved,updated_at FROM inventory_stocks WHERE organization_id=$1 ORDER BY warehouse_id,sku_id`, org)
 	if e != nil {

@@ -30,6 +30,28 @@ func (s *Service) Get(org, warehouse, sku string) (Stock, error) {
 }
 func (s *Service) List(org string) []Stock { return s.store.List(org) }
 
+func (s *Service) ImportStocks(org string, values []Stock) error {
+	if strings.TrimSpace(org) == "" || len(values) == 0 {
+		return ErrInvalidInput
+	}
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if value.OrganizationID != org || strings.TrimSpace(value.WarehouseID) == "" || strings.TrimSpace(value.SKUID) == "" || value.OnHand < 0 || value.Reserved < 0 || value.Reserved > value.OnHand || value.Available != value.OnHand-value.Reserved {
+			return ErrInvalidInput
+		}
+		key := value.WarehouseID + "\x00" + value.SKUID
+		if _, ok := seen[key]; ok {
+			return ErrInvalidInput
+		}
+		seen[key] = struct{}{}
+	}
+	store, ok := s.store.(ImportStore)
+	if !ok {
+		return ErrInvalidInput
+	}
+	return store.ImportStocks(values, s.now().UTC())
+}
+
 func (s *Service) apply(org, warehouse, sku, action string, in StockOperationInput) (Stock, error) {
 	if strings.TrimSpace(org) == "" || strings.TrimSpace(warehouse) == "" || strings.TrimSpace(sku) == "" || in.Quantity <= 0 || strings.TrimSpace(in.IdempotencyKey) == "" {
 		return Stock{}, ErrInvalidInput

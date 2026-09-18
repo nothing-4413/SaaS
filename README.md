@@ -106,14 +106,14 @@ GitHub Actions 会在每次提交和 Pull Request 上使用官方 Go 工具链�
 
 `internal/export` 提供订单和库存 CSV 导出函数，可接入后台任务或 HTTP 下载接口，输出包含组织、状态、金额和库存数量等关键字段。
 
-`internal/importer` 提供同格式库存 CSV 导入，校验组织归属、非负数量及 `available = on_hand - reserved` 派生关系，发现任一非法行时整批失败。
+`internal/importer` 提供同格式库存 CSV 导入，校验组织归属、重复库存项、非负数量及 `available = on_hand - reserved` 派生关系。校验完成后在单个 PostgreSQL 事务中批量写入，任一仓库/SKU 外键或数据非法时整批回滚。
 
 CSV 下载接口：
 
 - `GET /organizations/{id}/exports/orders/csv`
 - `GET /organizations/{id}/exports/stocks/csv`
 
-库存导入接口：`POST /organizations/{id}/imports/stocks`，请求体为库存 CSV，服务会先完成整批校验，再返回解析结果。
+库存导入接口：`POST /organizations/{id}/imports/stocks`，请求体为库存 CSV，服务会先完成整批校验和原子落库，再返回导入结果。
 
 ## 会话令牌
 

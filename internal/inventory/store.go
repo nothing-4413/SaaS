@@ -27,6 +27,10 @@ type AtomicStore interface {
 	Apply(org, warehouse, sku, action string, quantity int64, idempotencyKey string, at time.Time) (Stock, error)
 }
 
+type ImportStore interface {
+	ImportStocks([]Stock, time.Time) error
+}
+
 type MemoryStore struct {
 	mu        sync.RWMutex
 	items     map[string]Stock
@@ -51,6 +55,16 @@ func (s *MemoryStore) Put(v Stock) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.items[key(v.OrganizationID, v.WarehouseID, v.SKUID)] = v
+	return nil
+}
+func (s *MemoryStore) ImportStocks(values []Stock, at time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, value := range values {
+		value.Available = value.OnHand - value.Reserved
+		value.UpdatedAt = at
+		s.items[key(value.OrganizationID, value.WarehouseID, value.SKUID)] = value
+	}
 	return nil
 }
 func (s *MemoryStore) List(org string) []Stock {

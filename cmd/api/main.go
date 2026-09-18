@@ -109,7 +109,7 @@ func main() {
 	orderHandler := order.NewHandler(orderService)
 	reportHandler := report.NewHandler(report.NewService(orderService, inventoryService))
 	exportHandler := export.NewHandler(orderService, inventoryService)
-	importerHandler := importer.NewHandler()
+	importerHandler := importer.NewHandler(inventoryService)
 	metrics := httpx.NewMetrics()
 	authHandler := auth.NewHandler(service, cfg.AuthTokenSecret)
 	auditService := audit.NewService(audit.NewPostgresStore(db))
