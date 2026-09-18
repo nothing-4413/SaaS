@@ -91,7 +91,7 @@ make build      # 构建全部 Go 包
 make docker-up  # 启动 PostgreSQL / Redis
 ```
 
-GitHub Actions 会在每次提交和 Pull Request 上使用官方 Go 工具链执行格式检查、测试和构建。
+GitHub Actions 会在每次提交和 Pull Request 上使用官方 Go 工具链执行格式检查、测试、`go vet`、竞态测试和构建。
 
 ## Webhook
 
