@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -39,7 +40,7 @@ func (s *PostgresStore) CreateOrganizationOwner(org Organization, role Role, use
 	if _, err = tx.Exec(`INSERT INTO roles (id,organization_id,name,permissions) VALUES ($1,$2,$3,$4)`, role.ID, role.OrganizationID, role.Name, permissions); err != nil {
 		return pgError(err)
 	}
-	if _, err = tx.Exec(`INSERT INTO users (id,organization_id,email,name,password_hash,created_at) VALUES ($1,$2,$3,$4,$5,$6)`, user.ID, user.OrganizationID, user.Email, user.Name, user.PasswordHash, user.CreatedAt); err != nil {
+	if _, err = tx.Exec(`INSERT INTO users (id,organization_id,email,name,password_hash,active,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, user.ID, user.OrganizationID, user.Email, user.Name, user.PasswordHash, user.Active, user.CreatedAt); err != nil {
 		return pgError(err)
 	}
 	if _, err = tx.Exec(`INSERT INTO user_roles (organization_id,user_id,role_id) VALUES ($1,$2,$3)`, org.ID, user.ID, role.ID); err != nil {
@@ -112,7 +113,7 @@ func (s *PostgresStore) CreateUser(v User) error {
 		return e
 	}
 	defer tx.Rollback()
-	_, e = tx.Exec(`INSERT INTO users (id,organization_id,email,name,password_hash,created_at) VALUES ($1,$2,$3,$4,$5,$6)`, v.ID, v.OrganizationID, v.Email, v.Name, v.PasswordHash, v.CreatedAt)
+	_, e = tx.Exec(`INSERT INTO users (id,organization_id,email,name,password_hash,active,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, v.ID, v.OrganizationID, v.Email, v.Name, v.PasswordHash, v.Active, v.CreatedAt)
 	if e != nil {
 		return pgError(e)
 	}
@@ -129,7 +130,7 @@ func (s *PostgresStore) UpdateUser(v User) error {
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`UPDATE users SET name=$3,password_hash=$4 WHERE organization_id=$1 AND id=$2`, v.OrganizationID, v.ID, v.Name, v.PasswordHash)
+	result, err := tx.Exec(`UPDATE users SET name=$3,password_hash=$4,active=$5 WHERE organization_id=$1 AND id=$2`, v.OrganizationID, v.ID, v.Name, v.PasswordHash, v.Active)
 	if err != nil {
 		return pgError(err)
 	}
@@ -162,7 +163,7 @@ func (s *PostgresStore) rolesForUser(id string) []string {
 	return out
 }
 func (s *PostgresStore) ListUsers(org string) []User {
-	rows, e := s.db.QueryContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,created_at FROM users WHERE organization_id=$1 ORDER BY created_at`, org)
+	rows, e := s.db.QueryContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE organization_id=$1 ORDER BY created_at`, org)
 	if e != nil {
 		return []User{}
 	}
@@ -170,7 +171,7 @@ func (s *PostgresStore) ListUsers(org string) []User {
 	out := []User{}
 	for rows.Next() {
 		var v User
-		if rows.Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.CreatedAt) == nil {
+		if rows.Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.Active, &v.CreatedAt) == nil {
 			v.RoleIDs = s.rolesForUser(v.ID)
 			out = append(out, v)
 		}
@@ -179,7 +180,7 @@ func (s *PostgresStore) ListUsers(org string) []User {
 }
 func (s *PostgresStore) GetUser(id string) (User, error) {
 	var v User
-	e := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,created_at FROM users WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.CreatedAt)
+	e := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.Active, &v.CreatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -191,7 +192,7 @@ func (s *PostgresStore) GetUser(id string) (User, error) {
 }
 func (s *PostgresStore) FindUserByEmail(org, email string) (User, error) {
 	var v User
-	e := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,created_at FROM users WHERE organization_id=$1 AND email=$2`, org, email).Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.CreatedAt)
+	e := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE organization_id=$1 AND email=$2`, org, email).Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.Active, &v.CreatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -200,4 +201,31 @@ func (s *PostgresStore) FindUserByEmail(org, email string) (User, error) {
 	}
 	v.RoleIDs = s.rolesForUser(v.ID)
 	return v, nil
+}
+
+func (s *PostgresStore) CreateSession(v Session) error {
+	_, err := s.db.ExecContext(context.Background(), `INSERT INTO auth_sessions (id,organization_id,user_id,expires_at,created_at) VALUES ($1,$2,$3,$4,$5)`, v.ID, v.OrganizationID, v.UserID, v.ExpiresAt, v.CreatedAt)
+	return pgError(err)
+}
+func (s *PostgresStore) GetSession(id string) (Session, error) {
+	var v Session
+	var revoked sql.NullTime
+	err := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,user_id,expires_at,created_at,revoked_at FROM auth_sessions WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.UserID, &v.ExpiresAt, &v.CreatedAt, &revoked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Session{}, ErrNotFound
+	}
+	if revoked.Valid {
+		v.RevokedAt = &revoked.Time
+	}
+	return v, err
+}
+func (s *PostgresStore) RevokeSession(id string, at time.Time) error {
+	result, err := s.db.ExecContext(context.Background(), `UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,$2) WHERE id=$1`, id, at)
+	if err != nil {
+		return err
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

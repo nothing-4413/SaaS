@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"sync"
+	"time"
 )
 
 var (
@@ -22,6 +23,9 @@ type Store interface {
 	ListUsers(string) []User
 	GetUser(string) (User, error)
 	FindUserByEmail(string, string) (User, error)
+	CreateSession(Session) error
+	GetSession(string) (Session, error)
+	RevokeSession(string, time.Time) error
 }
 
 type BootstrapStore interface {
@@ -33,10 +37,11 @@ type MemoryStore struct {
 	organizations map[string]Organization
 	roles         map[string]Role
 	users         map[string]User
+	sessions      map[string]Session
 }
 
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{organizations: make(map[string]Organization), roles: make(map[string]Role), users: make(map[string]User)}
+	return &MemoryStore{organizations: make(map[string]Organization), roles: make(map[string]Role), users: make(map[string]User), sessions: make(map[string]Session)}
 }
 
 func (s *MemoryStore) CreateOrganization(v Organization) error {
@@ -173,4 +178,34 @@ func (s *MemoryStore) FindUserByEmail(orgID, email string) (User, error) {
 		}
 	}
 	return User{}, ErrNotFound
+}
+
+func (s *MemoryStore) CreateSession(v Session) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.sessions[v.ID]; ok {
+		return ErrConflict
+	}
+	s.sessions[v.ID] = v
+	return nil
+}
+func (s *MemoryStore) GetSession(id string) (Session, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.sessions[id]
+	if !ok {
+		return Session{}, ErrNotFound
+	}
+	return v, nil
+}
+func (s *MemoryStore) RevokeSession(id string, at time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.sessions[id]
+	if !ok {
+		return ErrNotFound
+	}
+	v.RevokedAt = &at
+	s.sessions[id] = v
+	return nil
 }

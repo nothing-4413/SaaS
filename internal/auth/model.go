@@ -48,6 +48,7 @@ type User struct {
 	Name           string    `json:"name"`
 	RoleIDs        []string  `json:"role_ids"`
 	PasswordHash   string    `json:"-"`
+	Active         bool      `json:"active"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -69,6 +70,20 @@ type UpdateUserInput struct {
 	Name     string   `json:"name"`
 	Password string   `json:"password"`
 	RoleIDs  []string `json:"role_ids"`
+	Active   *bool    `json:"active,omitempty"`
+}
+
+type Session struct {
+	ID             string     `json:"id"`
+	OrganizationID string     `json:"organization_id"`
+	UserID         string     `json:"user_id"`
+	ExpiresAt      time.Time  `json:"expires_at"`
+	CreatedAt      time.Time  `json:"created_at"`
+	RevokedAt      *time.Time `json:"revoked_at,omitempty"`
+}
+
+type RefreshInput struct {
+	RefreshToken string `json:"refresh_token"`
 }
 
 type LoginInput struct {

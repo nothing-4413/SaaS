@@ -47,7 +47,11 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Split(path, "/")
-	if path == "organizations" || (len(parts) == 3 && parts[0] == "organizations" && parts[2] == "sessions") {
+	if path == "organizations" || (len(parts) == 3 && parts[0] == "organizations" && parts[2] == "sessions" && r.Method == http.MethodPost) {
+		h.authPublic.ServeHTTP(w, r)
+		return
+	}
+	if len(parts) == 3 && parts[0] == "organizations" && parts[2] == "sessions" {
 		h.authPublic.ServeHTTP(w, r)
 		return
 	}

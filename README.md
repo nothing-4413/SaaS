@@ -125,7 +125,7 @@ CSV 下载接口：
 
 `RequireTokenPermission` 支持标准 `Authorization: Bearer <token>` 请求头，并将验证后的 Claims 注入 request context。
 
-`POST /organizations/{id}/sessions` 使用邮箱和密码登录并签发 24 小时 Bearer Token；密码仅以 bcrypt 哈希形式存储。
+`POST /organizations/{id}/sessions` 使用邮箱和密码登录并签发 15 分钟访问令牌和 30 天刷新令牌；`PUT` 可使用刷新令牌换取新的访问令牌，`DELETE` 撤销当前会话。用户可被禁用，禁用后无法登录且已有会话立即失效。密码仅以 bcrypt 哈希形式存储。
 
 OpenAPI 文档已包含 Bearer Token 安全方案，以及报表、库存和 CSV 导出接口定义。
 

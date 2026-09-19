@@ -20,6 +20,24 @@ paths:
                 email: { type: string, format: email }
                 password: { type: string, format: password, minLength: 8 }
       responses: { '200': { description: Bearer token }, '401': { description: Invalid credentials } }
+    put:
+      summary: Exchange a refresh token for a short-lived access token
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses: { '200': { description: Refreshed access token }, '401': { description: Invalid refresh token } }
+    delete:
+      summary: Revoke the current session
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      responses: { '204': { description: Revoked }, '401': { description: Invalid session } }
   /organizations:
     post:
       summary: Create organization
@@ -156,6 +174,44 @@ paths:
                 threshold: { type: integer, format: int64, minimum: 0 }
                 enabled: { type: boolean }
       responses: { '200': { description: Alert rule }, '400': { description: Invalid input } }
+  /organizations/{organizationId}/users/{userId}:
+    put:
+      summary: Update a user's profile, password, roles, or active status
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { name: userId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                password: { type: string, format: password, minLength: 8 }
+                role_ids: { type: array, items: { type: string } }
+                active: { type: boolean }
+      responses: { '200': { description: Updated user }, '400': { description: Invalid input }, '404': { description: Not found } }
+  /organizations/{organizationId}/roles/{roleId}:
+    put:
+      summary: Update a role name and permissions
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { name: roleId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                permissions: { type: array, items: { type: string } }
+      responses: { '200': { description: Updated role }, '400': { description: Invalid input }, '404': { description: Not found } }
 components:
   securitySchemes:
     bearerAuth:

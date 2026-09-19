@@ -37,7 +37,7 @@ func (s *Service) CreateOrganization(in CreateOrganizationInput) (Organization, 
 			return Organization{}, err
 		}
 		role := Role{ID: s.id(), OrganizationID: v.ID, Name: "owner", Permissions: append([]Permission(nil), AllPermissions...)}
-		user := User{ID: s.id(), OrganizationID: v.ID, Email: email, Name: ownerName, PasswordHash: string(hash), RoleIDs: []string{role.ID}, CreatedAt: v.CreatedAt}
+		user := User{ID: s.id(), OrganizationID: v.ID, Email: email, Name: ownerName, PasswordHash: string(hash), RoleIDs: []string{role.ID}, Active: true, CreatedAt: v.CreatedAt}
 		store, ok := s.store.(BootstrapStore)
 		if !ok {
 			return Organization{}, ErrInvalidInput
@@ -76,7 +76,7 @@ func (s *Service) CreateUser(orgID string, in CreateUserInput) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	v := User{ID: s.id(), OrganizationID: orgID, Email: email, Name: name, PasswordHash: string(hash), RoleIDs: append([]string(nil), in.RoleIDs...), CreatedAt: s.now().UTC()}
+	v := User{ID: s.id(), OrganizationID: orgID, Email: email, Name: name, PasswordHash: string(hash), RoleIDs: append([]string(nil), in.RoleIDs...), Active: true, CreatedAt: s.now().UTC()}
 	return v, s.store.CreateUser(v)
 }
 func (s *Service) UpdateRole(orgID, roleID string, in UpdateRoleInput) (Role, error) {
@@ -124,6 +124,9 @@ func (s *Service) UpdateUser(orgID, userID string, in UpdateUserInput) (User, er
 	}
 	user.Name = strings.TrimSpace(in.Name)
 	user.RoleIDs = append([]string(nil), in.RoleIDs...)
+	if in.Active != nil {
+		user.Active = *in.Active
+	}
 	return user, s.store.UpdateUser(user)
 }
 func (s *Service) Authenticate(org, email, password string) (User, error) {
@@ -135,11 +138,35 @@ func (s *Service) Authenticate(org, email, password string) (User, error) {
 	if err != nil {
 		return User{}, ErrNotFound
 	}
-	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
+	if !u.Active || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
 		return User{}, ErrNotFound
 	}
 	return u, nil
 }
+
+func (s *Service) CreateSession(user User, lifetime time.Duration) (Session, error) {
+	if !user.Active || lifetime <= 0 {
+		return Session{}, ErrInvalidInput
+	}
+	now := s.now().UTC()
+	v := Session{ID: s.id(), OrganizationID: user.OrganizationID, UserID: user.ID, CreatedAt: now, ExpiresAt: now.Add(lifetime)}
+	return v, s.store.CreateSession(v)
+}
+func (s *Service) GetActiveSession(id, orgID, userID string) (Session, error) {
+	v, err := s.store.GetSession(id)
+	if err != nil {
+		return Session{}, err
+	}
+	if v.OrganizationID != orgID || v.UserID != userID || v.RevokedAt != nil || !v.ExpiresAt.After(s.now()) {
+		return Session{}, ErrNotFound
+	}
+	u, err := s.store.GetUser(userID)
+	if err != nil || !u.Active {
+		return Session{}, ErrNotFound
+	}
+	return v, nil
+}
+func (s *Service) RevokeSession(id string) error { return s.store.RevokeSession(id, s.now().UTC()) }
 func (s *Service) ListUsers(orgID string) []User { return s.store.ListUsers(orgID) }
 func (s *Service) ListRoles(orgID string) []Role { return s.store.ListRoles(orgID) }
 

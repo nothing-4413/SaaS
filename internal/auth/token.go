@@ -15,6 +15,8 @@ var ErrInvalidToken = errors.New("invalid token")
 type Claims struct {
 	UserID         string `json:"user_id"`
 	OrganizationID string `json:"organization_id"`
+	SessionID      string `json:"session_id,omitempty"`
+	TokenType      string `json:"token_type,omitempty"`
 	ExpiresAt      int64  `json:"exp"`
 }
 
