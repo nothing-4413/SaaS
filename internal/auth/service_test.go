@@ -73,3 +73,25 @@ func TestCreateOrganizationRejectsPartialOwner(t *testing.T) {
 		t.Fatalf("expected invalid input, got %v", err)
 	}
 }
+
+func TestUpdateUserAndRoleRemainTenantScoped(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	a, _ := s.CreateOrganization(CreateOrganizationInput{Name: "A"})
+	b, _ := s.CreateOrganization(CreateOrganizationInput{Name: "B"})
+	r, _ := s.CreateRole(a.ID, CreateRoleInput{Name: "staff"})
+	u, _ := s.CreateUser(a.ID, CreateUserInput{Email: "u@example.com", Name: "Old", Password: "password123", RoleIDs: []string{r.ID}})
+	updatedRole, err := s.UpdateRole(a.ID, r.ID, UpdateRoleInput{Name: "manager", Permissions: []Permission{PermissionUserRead}})
+	if err != nil || updatedRole.Name != "manager" {
+		t.Fatalf("role update failed: %+v %v", updatedRole, err)
+	}
+	updatedUser, err := s.UpdateUser(a.ID, u.ID, UpdateUserInput{Name: "New", Password: "newpassword123", RoleIDs: []string{r.ID}})
+	if err != nil || updatedUser.Name != "New" {
+		t.Fatalf("user update failed: %+v %v", updatedUser, err)
+	}
+	if _, err := s.UpdateUser(b.ID, u.ID, UpdateUserInput{Name: "bad"}); err != ErrNotFound {
+		t.Fatalf("expected tenant isolation, got %v", err)
+	}
+	if _, err := s.Authenticate(a.ID, u.Email, "newpassword123"); err != nil {
+		t.Fatalf("password was not updated: %v", err)
+	}
+}

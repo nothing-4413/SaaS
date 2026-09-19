@@ -16,7 +16,9 @@ type Store interface {
 	CreateRole(Role) error
 	ListRoles(string) []Role
 	GetRole(string) (Role, error)
+	UpdateRole(Role) error
 	CreateUser(User) error
+	UpdateUser(User) error
 	ListUsers(string) []User
 	GetUser(string) (User, error)
 	FindUserByEmail(string, string) (User, error)
@@ -100,11 +102,41 @@ func (s *MemoryStore) GetRole(id string) (Role, error) {
 	}
 	return v, nil
 }
+func (s *MemoryStore) UpdateRole(v Role) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, ok := s.roles[v.ID]
+	if !ok || old.OrganizationID != v.OrganizationID {
+		return ErrNotFound
+	}
+	for id, role := range s.roles {
+		if id != v.ID && role.OrganizationID == v.OrganizationID && role.Name == v.Name {
+			return ErrConflict
+		}
+	}
+	s.roles[v.ID] = v
+	return nil
+}
 func (s *MemoryStore) CreateUser(v User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, u := range s.users {
 		if u.Email == v.Email && u.OrganizationID == v.OrganizationID {
+			return ErrConflict
+		}
+	}
+	s.users[v.ID] = v
+	return nil
+}
+func (s *MemoryStore) UpdateUser(v User) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, ok := s.users[v.ID]
+	if !ok || old.OrganizationID != v.OrganizationID {
+		return ErrNotFound
+	}
+	for id, user := range s.users {
+		if id != v.ID && user.OrganizationID == v.OrganizationID && user.Email == v.Email {
 			return ErrConflict
 		}
 	}

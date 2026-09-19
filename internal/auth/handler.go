@@ -43,6 +43,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if len(parts) == 4 && parts[2] == "users" && r.Method == http.MethodPut {
+			h.updateUser(w, r, orgID, parts[3])
+			return
+		}
 		if len(parts) == 3 && parts[2] == "roles" {
 			if r.Method == http.MethodPost {
 				h.createRole(w, r, orgID)
@@ -52,6 +56,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.listRoles(w, orgID)
 				return
 			}
+		}
+		if len(parts) == 4 && parts[2] == "roles" && r.Method == http.MethodPut {
+			h.updateRole(w, r, orgID, parts[3])
+			return
 		}
 	}
 	http.NotFound(w, r)
@@ -147,4 +155,28 @@ func (h *Handler) listUsers(w http.ResponseWriter, orgID string) {
 }
 func (h *Handler) listRoles(w http.ResponseWriter, orgID string) {
 	writeJSON(w, http.StatusOK, h.service.ListRoles(orgID))
+}
+func (h *Handler) updateRole(w http.ResponseWriter, r *http.Request, orgID, roleID string) {
+	var in UpdateRoleInput
+	if !decode(w, r, &in) {
+		return
+	}
+	v, err := h.service.UpdateRole(orgID, roleID, in)
+	if err != nil {
+		writeError(w, statusFor(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request, orgID, userID string) {
+	var in UpdateUserInput
+	if !decode(w, r, &in) {
+		return
+	}
+	v, err := h.service.UpdateUser(orgID, userID, in)
+	if err != nil {
+		writeError(w, statusFor(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
 }

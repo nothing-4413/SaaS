@@ -79,6 +79,53 @@ func (s *Service) CreateUser(orgID string, in CreateUserInput) (User, error) {
 	v := User{ID: s.id(), OrganizationID: orgID, Email: email, Name: name, PasswordHash: string(hash), RoleIDs: append([]string(nil), in.RoleIDs...), CreatedAt: s.now().UTC()}
 	return v, s.store.CreateUser(v)
 }
+func (s *Service) UpdateRole(orgID, roleID string, in UpdateRoleInput) (Role, error) {
+	if strings.TrimSpace(orgID) == "" || strings.TrimSpace(roleID) == "" || strings.TrimSpace(in.Name) == "" {
+		return Role{}, ErrInvalidInput
+	}
+	role, err := s.store.GetRole(roleID)
+	if err != nil {
+		return Role{}, err
+	}
+	if role.OrganizationID != orgID {
+		return Role{}, ErrNotFound
+	}
+	role.Name = strings.TrimSpace(in.Name)
+	role.Permissions = append([]Permission(nil), in.Permissions...)
+	return role, s.store.UpdateRole(role)
+}
+
+func (s *Service) UpdateUser(orgID, userID string, in UpdateUserInput) (User, error) {
+	if strings.TrimSpace(orgID) == "" || strings.TrimSpace(userID) == "" || strings.TrimSpace(in.Name) == "" {
+		return User{}, ErrInvalidInput
+	}
+	user, err := s.store.GetUser(userID)
+	if err != nil {
+		return User{}, err
+	}
+	if user.OrganizationID != orgID {
+		return User{}, ErrNotFound
+	}
+	for _, roleID := range in.RoleIDs {
+		role, err := s.store.GetRole(roleID)
+		if err != nil || role.OrganizationID != orgID {
+			return User{}, ErrInvalidInput
+		}
+	}
+	if in.Password != "" {
+		if len(in.Password) < 8 {
+			return User{}, ErrInvalidInput
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return User{}, err
+		}
+		user.PasswordHash = string(hash)
+	}
+	user.Name = strings.TrimSpace(in.Name)
+	user.RoleIDs = append([]string(nil), in.RoleIDs...)
+	return user, s.store.UpdateUser(user)
+}
 func (s *Service) Authenticate(org, email, password string) (User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if org == "" || email == "" || password == "" {

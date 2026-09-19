@@ -65,12 +65,23 @@ type CreateUserInput struct {
 	RoleIDs  []string `json:"role_ids"`
 }
 
+type UpdateUserInput struct {
+	Name     string   `json:"name"`
+	Password string   `json:"password"`
+	RoleIDs  []string `json:"role_ids"`
+}
+
 type LoginInput struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type CreateRoleInput struct {
+	Name        string       `json:"name"`
+	Permissions []Permission `json:"permissions"`
+}
+
+type UpdateRoleInput struct {
 	Name        string       `json:"name"`
 	Permissions []Permission `json:"permissions"`
 }

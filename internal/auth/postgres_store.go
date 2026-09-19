@@ -95,6 +95,17 @@ func (s *PostgresStore) GetRole(id string) (Role, error) {
 	}
 	return v, e
 }
+func (s *PostgresStore) UpdateRole(v Role) error {
+	b, err := json.Marshal(v.Permissions)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(context.Background(), `UPDATE roles SET name=$3,permissions=$4 WHERE organization_id=$1 AND id=$2`, v.OrganizationID, v.ID, v.Name, b)
+	if err != nil {
+		return pgError(err)
+	}
+	return nil
+}
 func (s *PostgresStore) CreateUser(v User) error {
 	tx, e := s.db.BeginTx(context.Background(), nil)
 	if e != nil {
@@ -108,6 +119,29 @@ func (s *PostgresStore) CreateUser(v User) error {
 	for _, roleID := range v.RoleIDs {
 		if _, e = tx.Exec(`INSERT INTO user_roles (organization_id,user_id,role_id) VALUES ($1,$2,$3)`, v.OrganizationID, v.ID, roleID); e != nil {
 			return pgError(e)
+		}
+	}
+	return tx.Commit()
+}
+func (s *PostgresStore) UpdateUser(v User) error {
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	result, err := tx.Exec(`UPDATE users SET name=$3,password_hash=$4 WHERE organization_id=$1 AND id=$2`, v.OrganizationID, v.ID, v.Name, v.PasswordHash)
+	if err != nil {
+		return pgError(err)
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		return ErrNotFound
+	}
+	if _, err = tx.Exec(`DELETE FROM user_roles WHERE organization_id=$1 AND user_id=$2`, v.OrganizationID, v.ID); err != nil {
+		return err
+	}
+	for _, roleID := range v.RoleIDs {
+		if _, err = tx.Exec(`INSERT INTO user_roles (organization_id,user_id,role_id) VALUES ($1,$2,$3)`, v.OrganizationID, v.ID, roleID); err != nil {
+			return pgError(err)
 		}
 	}
 	return tx.Commit()
