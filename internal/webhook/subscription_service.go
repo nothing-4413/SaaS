@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -52,8 +53,12 @@ func (s *SubscriptionService) Delete(org, id string) error {
 }
 
 func (s *SubscriptionService) Deliver(event outbox.Event) error {
+	var failures []error
 	for _, subscription := range s.store.List(event.OrganizationID) {
 		if !subscription.Active || !accepts(subscription.EventTypes, event.Type) {
+			continue
+		}
+		if s.store.IsDelivered(event.ID, subscription.ID) {
 			continue
 		}
 		err := s.sender.Send(Delivery{
@@ -65,10 +70,14 @@ func (s *SubscriptionService) Deliver(event outbox.Event) error {
 			IdempotencyKey: event.ID + ":" + subscription.ID,
 		})
 		if err != nil {
-			return err
+			failures = append(failures, fmt.Errorf("subscription %s: %w", subscription.ID, err))
+			continue
+		}
+		if err := s.store.MarkDelivered(event.ID, subscription.ID, s.now().UTC()); err != nil {
+			failures = append(failures, fmt.Errorf("record subscription %s delivery: %w", subscription.ID, err))
 		}
 	}
-	return nil
+	return errors.Join(failures...)
 }
 
 func accepts(events []string, eventType string) bool {

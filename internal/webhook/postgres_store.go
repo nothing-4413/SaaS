@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -64,4 +65,17 @@ func (s *PostgresStore) Delete(org, id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (s *PostgresStore) IsDelivered(eventID, subscriptionID string) bool {
+	var exists bool
+	err := s.db.QueryRowContext(context.Background(), `SELECT EXISTS(SELECT 1 FROM webhook_deliveries WHERE event_id=$1 AND subscription_id=$2)`, eventID, subscriptionID).Scan(&exists)
+	return err == nil && exists
+}
+
+func (s *PostgresStore) MarkDelivered(eventID, subscriptionID string, at time.Time) error {
+	_, err := s.db.ExecContext(context.Background(), `
+		INSERT INTO webhook_deliveries (event_id,subscription_id,delivered_at)
+		VALUES ($1,$2,$3) ON CONFLICT (event_id,subscription_id) DO NOTHING`, eventID, subscriptionID, at)
+	return err
 }

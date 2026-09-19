@@ -46,3 +46,31 @@ func TestSubscriptionFiltersEvents(t *testing.T) {
 		t.Fatalf("requests=%d err=%v", requests, err)
 	}
 }
+
+func TestSubscriptionDeliveryIsolatesFailuresAndSkipsSuccessesOnRetry(t *testing.T) {
+	requests := map[string]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		key := r.Header.Get("X-Idempotency-Key")
+		requests[key]++
+		if strings.HasSuffix(r.URL.Path, "/bad") && requests[key] == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	store := NewMemoryStore()
+	service := NewSubscriptionService(store, Sender{})
+	good, _ := service.Create("org", CreateSubscriptionInput{URL: server.URL + "/good", Secret: "0123456789abcdef", EventTypes: []string{"order.created"}})
+	bad, _ := service.Create("org", CreateSubscriptionInput{URL: server.URL + "/bad", Secret: "0123456789abcdef", EventTypes: []string{"order.created"}})
+	event := outbox.Event{ID: "event", OrganizationID: "org", Type: "order.created", Payload: []byte(`{}`)}
+	if err := service.Deliver(event); err == nil {
+		t.Fatal("expected failed subscription")
+	}
+	if err := service.Deliver(event); err != nil {
+		t.Fatal(err)
+	}
+	if requests["event:"+good.ID] != 1 || requests["event:"+bad.ID] != 2 {
+		t.Fatalf("requests=%v", requests)
+	}
+}
