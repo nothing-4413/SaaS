@@ -3,6 +3,7 @@ services:
     build: .
     environment:
       HTTP_ADDR: :8080
+      APP_ENV: development
       DATABASE_URL: postgres://saas:saas@postgres:5432/saas?sslmode=disable
       REDIS_URL: redis://redis:6379/0
       AUTH_TOKEN_SECRET: development-only-change-me

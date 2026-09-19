@@ -19,7 +19,7 @@ func TestSubscriptionCRUDAndDelivery(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
-	service := NewSubscriptionService(NewMemoryStore(), Sender{})
+	service := NewSubscriptionService(NewMemoryStore(), Sender{AllowPrivate: true})
 	subscription, err := service.Create("org", CreateSubscriptionInput{URL: server.URL, Secret: "0123456789abcdef", EventTypes: []string{"order.confirmed"}})
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func TestSubscriptionFiltersEvents(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests++; w.WriteHeader(http.StatusNoContent) }))
 	defer server.Close()
-	service := NewSubscriptionService(NewMemoryStore(), Sender{})
+	service := NewSubscriptionService(NewMemoryStore(), Sender{AllowPrivate: true})
 	_, _ = service.Create("org", CreateSubscriptionInput{URL: server.URL, Secret: "0123456789abcdef", EventTypes: []string{"stock.low"}})
 	if err := service.Deliver(outbox.Event{ID: "event", OrganizationID: "org", Type: "order.created", Payload: []byte(`{}`)}); err != nil || requests != 0 {
 		t.Fatalf("requests=%d err=%v", requests, err)
@@ -60,7 +60,7 @@ func TestSubscriptionDeliveryIsolatesFailuresAndSkipsSuccessesOnRetry(t *testing
 	}))
 	defer server.Close()
 	store := NewMemoryStore()
-	service := NewSubscriptionService(store, Sender{})
+	service := NewSubscriptionService(store, Sender{AllowPrivate: true})
 	good, _ := service.Create("org", CreateSubscriptionInput{URL: server.URL + "/good", Secret: "0123456789abcdef", EventTypes: []string{"order.created"}})
 	bad, _ := service.Create("org", CreateSubscriptionInput{URL: server.URL + "/bad", Secret: "0123456789abcdef", EventTypes: []string{"order.created"}})
 	event := outbox.Event{ID: "event", OrganizationID: "org", Type: "order.created", Payload: []byte(`{}`)}

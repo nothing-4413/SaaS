@@ -104,6 +104,9 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.ValidateAPI(); err != nil {
+		log.Fatal(err)
+	}
 	db, err := postgres.Open(context.Background(), cfg.PostgresURL)
 	if err != nil {
 		log.Fatal(err)
