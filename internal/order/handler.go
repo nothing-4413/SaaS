@@ -3,9 +3,12 @@ package order
 import (
 	"encoding/json"
 	"errors"
-	"github.com/nothing-4413/saas/internal/inventory"
 	"net/http"
+	"sort"
 	"strings"
+
+	"github.com/nothing-4413/saas/internal/inventory"
+	"github.com/nothing-4413/saas/internal/platform/pagination"
 )
 
 type Handler struct{ service *Service }
@@ -29,7 +32,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(p) == 3 && r.Method == http.MethodGet {
-			writeJSON(w, 200, h.service.List(org))
+			h.list(w, r, org)
 			return
 		}
 		if len(p) == 5 && r.Method == http.MethodPost {
@@ -60,6 +63,58 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.NotFound(w, r)
+}
+func (h *Handler) list(w http.ResponseWriter, r *http.Request, org string) {
+	p, err := pagination.Parse(r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items := h.service.List(org)
+	statusFilter := Status(r.URL.Query().Get("status"))
+	if statusFilter != "" {
+		valid := map[Status]bool{StatusPending: true, StatusConfirmed: true, StatusPaid: true, StatusShipped: true, StatusCompleted: true, StatusCancelled: true, StatusRefunded: true}
+		if !valid[statusFilter] {
+			writeError(w, http.StatusBadRequest, "invalid status")
+			return
+		}
+		filtered := items[:0]
+		for _, v := range items {
+			if v.Status == statusFilter {
+				filtered = append(filtered, v)
+			}
+		}
+		items = filtered
+	}
+	if p.Query != "" {
+		q := strings.ToLower(p.Query)
+		filtered := items[:0]
+		for _, v := range items {
+			if strings.Contains(strings.ToLower(v.ID), q) || strings.Contains(strings.ToLower(v.IdempotencyKey), q) {
+				filtered = append(filtered, v)
+			}
+		}
+		items = filtered
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if p.Sort == "total_cents" && items[i].TotalCents != items[j].TotalCents {
+			if p.Desc {
+				return items[i].TotalCents > items[j].TotalCents
+			}
+			return items[i].TotalCents < items[j].TotalCents
+		}
+		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			if p.Desc {
+				return items[i].ID > items[j].ID
+			}
+			return items[i].ID < items[j].ID
+		}
+		if p.Desc {
+			return items[i].CreatedAt.After(items[j].CreatedAt)
+		}
+		return items[i].CreatedAt.Before(items[j].CreatedAt)
+	})
+	writeJSON(w, http.StatusOK, pagination.Slice(items, p))
 }
 func decode(w http.ResponseWriter, r *http.Request, v interface{}) bool {
 	if e := json.NewDecoder(r.Body).Decode(v); e != nil {

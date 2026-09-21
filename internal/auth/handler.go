@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
+
+	"github.com/nothing-4413/saas/internal/platform/pagination"
 )
 
 type Handler struct {
@@ -65,7 +68,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if r.Method == http.MethodGet {
-				h.listUsers(w, orgID)
+				h.listUsers(w, r, orgID)
 				return
 			}
 		}
@@ -79,7 +82,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if r.Method == http.MethodGet {
-				h.listRoles(w, orgID)
+				h.listRoles(w, r, orgID)
 				return
 			}
 		}
@@ -262,11 +265,77 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, orgID strin
 	}
 	writeJSON(w, http.StatusCreated, v)
 }
-func (h *Handler) listUsers(w http.ResponseWriter, orgID string) {
-	writeJSON(w, http.StatusOK, h.service.ListUsers(orgID))
+func (h *Handler) listUsers(w http.ResponseWriter, r *http.Request, orgID string) {
+	p, err := pagination.Parse(r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items := h.service.ListUsers(orgID)
+	if p.Query != "" {
+		q := strings.ToLower(p.Query)
+		filtered := items[:0]
+		for _, v := range items {
+			if strings.Contains(strings.ToLower(v.Email), q) || strings.Contains(strings.ToLower(v.Name), q) {
+				filtered = append(filtered, v)
+			}
+		}
+		items = filtered
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		less := items[i].CreatedAt.Before(items[j].CreatedAt)
+		equal := items[i].CreatedAt.Equal(items[j].CreatedAt)
+		if p.Sort == "name" {
+			less = strings.ToLower(items[i].Name) < strings.ToLower(items[j].Name)
+			equal = strings.EqualFold(items[i].Name, items[j].Name)
+		} else if p.Sort == "email" {
+			less = strings.ToLower(items[i].Email) < strings.ToLower(items[j].Email)
+			equal = strings.EqualFold(items[i].Email, items[j].Email)
+		}
+		if equal {
+			less = items[i].ID < items[j].ID
+			if items[i].ID == items[j].ID {
+				return false
+			}
+		}
+		if p.Desc {
+			return !less
+		}
+		return less
+	})
+	writeJSON(w, http.StatusOK, pagination.Slice(items, p))
 }
-func (h *Handler) listRoles(w http.ResponseWriter, orgID string) {
-	writeJSON(w, http.StatusOK, h.service.ListRoles(orgID))
+func (h *Handler) listRoles(w http.ResponseWriter, r *http.Request, orgID string) {
+	p, err := pagination.Parse(r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items := h.service.ListRoles(orgID)
+	if p.Query != "" {
+		q := strings.ToLower(p.Query)
+		filtered := items[:0]
+		for _, v := range items {
+			if strings.Contains(strings.ToLower(v.Name), q) {
+				filtered = append(filtered, v)
+			}
+		}
+		items = filtered
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		less := strings.ToLower(items[i].Name) < strings.ToLower(items[j].Name)
+		if strings.EqualFold(items[i].Name, items[j].Name) {
+			less = items[i].ID < items[j].ID
+			if items[i].ID == items[j].ID {
+				return false
+			}
+		}
+		if p.Desc {
+			return !less
+		}
+		return less
+	})
+	writeJSON(w, http.StatusOK, pagination.Slice(items, p))
 }
 func (h *Handler) updateRole(w http.ResponseWriter, r *http.Request, orgID, roleID string) {
 	var in UpdateRoleInput

@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
+
+	"github.com/nothing-4413/saas/internal/platform/pagination"
 )
 
 type Handler struct{ service *Service }
@@ -29,7 +32,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(p) == 3 && p[0] == "organizations" && p[2] == "stocks" && r.Method == http.MethodGet {
-		writeJSON(w, 200, h.service.List(p[1]))
+		h.listStocks(w, r, p[1])
 		return
 	}
 	if len(p) >= 3 && p[0] == "organizations" && (p[2] == "receipts" || p[2] == "issues") {
@@ -58,7 +61,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(p) == 3 && r.Method == http.MethodGet {
-			writeJSON(w, 200, h.service.ListDocuments(org, typ))
+			h.listDocuments(w, r, org, typ)
 			return
 		}
 		if len(p) == 4 && r.Method == http.MethodGet {
@@ -72,6 +75,67 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.NotFound(w, r)
+}
+
+func (h *Handler) listStocks(w http.ResponseWriter, r *http.Request, org string) {
+	p, err := pagination.Parse(r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items := h.service.List(org)
+	if p.Query != "" {
+		q := strings.ToLower(p.Query)
+		filtered := items[:0]
+		for _, v := range items {
+			if strings.Contains(strings.ToLower(v.WarehouseID), q) || strings.Contains(strings.ToLower(v.SKUID), q) {
+				filtered = append(filtered, v)
+			}
+		}
+		items = filtered
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		left, right := items[i].WarehouseID+"\x00"+items[i].SKUID, items[j].WarehouseID+"\x00"+items[j].SKUID
+		if p.Sort == "available" {
+			if items[i].Available == items[j].Available {
+				return items[i].SKUID < items[j].SKUID
+			}
+			if p.Desc {
+				return items[i].Available > items[j].Available
+			}
+			return items[i].Available < items[j].Available
+		}
+		if left == right {
+			return false
+		}
+		if p.Desc {
+			return left > right
+		}
+		return left < right
+	})
+	writeJSON(w, http.StatusOK, pagination.Slice(items, p))
+}
+
+func (h *Handler) listDocuments(w http.ResponseWriter, r *http.Request, org string, typ DocumentType) {
+	p, err := pagination.Parse(r.URL.Query())
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	items := h.service.ListDocuments(org, typ)
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			if p.Desc {
+				return items[i].ID > items[j].ID
+			}
+			return items[i].ID < items[j].ID
+		}
+		if p.Desc {
+			return items[i].CreatedAt.After(items[j].CreatedAt)
+		}
+		return items[i].CreatedAt.Before(items[j].CreatedAt)
+	})
+	writeJSON(w, http.StatusOK, pagination.Slice(items, p))
 }
 func (h *Handler) mutate(w http.ResponseWriter, r *http.Request, org, warehouse, sku, action string) {
 	var in StockOperationInput
