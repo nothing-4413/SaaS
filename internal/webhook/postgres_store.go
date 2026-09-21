@@ -1,13 +1,13 @@
 package webhook
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nothing-4413/saas/internal/platform/sqlctx"
 )
 
 type PostgresStore struct{ db *sql.DB }
@@ -27,14 +27,14 @@ func (s *PostgresStore) Create(value Subscription) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(context.Background(), `
+	_, err = s.db.ExecContext(sqlctx.Context(), `
 		INSERT INTO webhook_subscriptions (id,organization_id,url,secret,event_types,active,created_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7)`, value.ID, value.OrganizationID, value.URL, value.Secret, events, value.Active, value.CreatedAt)
 	return webhookPGError(err)
 }
 
 func (s *PostgresStore) List(org string) []Subscription {
-	rows, err := s.db.QueryContext(context.Background(), `
+	rows, err := s.db.QueryContext(sqlctx.Context(), `
 		SELECT id,organization_id,url,secret,event_types,active,created_at
 		FROM webhook_subscriptions WHERE organization_id=$1 ORDER BY created_at`, org)
 	if err != nil {
@@ -56,7 +56,7 @@ func (s *PostgresStore) List(org string) []Subscription {
 }
 
 func (s *PostgresStore) Delete(org, id string) error {
-	result, err := s.db.ExecContext(context.Background(), `DELETE FROM webhook_subscriptions WHERE organization_id=$1 AND id=$2`, org, id)
+	result, err := s.db.ExecContext(sqlctx.Context(), `DELETE FROM webhook_subscriptions WHERE organization_id=$1 AND id=$2`, org, id)
 	if err != nil {
 		return err
 	}
@@ -69,12 +69,12 @@ func (s *PostgresStore) Delete(org, id string) error {
 
 func (s *PostgresStore) IsDelivered(eventID, subscriptionID string) bool {
 	var exists bool
-	err := s.db.QueryRowContext(context.Background(), `SELECT EXISTS(SELECT 1 FROM webhook_deliveries WHERE event_id=$1 AND subscription_id=$2)`, eventID, subscriptionID).Scan(&exists)
+	err := s.db.QueryRowContext(sqlctx.Context(), `SELECT EXISTS(SELECT 1 FROM webhook_deliveries WHERE event_id=$1 AND subscription_id=$2)`, eventID, subscriptionID).Scan(&exists)
 	return err == nil && exists
 }
 
 func (s *PostgresStore) MarkDelivered(eventID, subscriptionID string, at time.Time) error {
-	_, err := s.db.ExecContext(context.Background(), `
+	_, err := s.db.ExecContext(sqlctx.Context(), `
 		INSERT INTO webhook_deliveries (event_id,subscription_id,delivered_at)
 		VALUES ($1,$2,$3) ON CONFLICT (event_id,subscription_id) DO NOTHING`, eventID, subscriptionID, at)
 	return err

@@ -1,7 +1,6 @@
 package inventory
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nothing-4413/saas/internal/platform/sqlctx"
 )
 
 func documentLineOrder(lines []DocumentLine) []int {
@@ -27,7 +27,7 @@ func documentLineOrder(lines []DocumentLine) []int {
 }
 
 func (s *PostgresStore) CreateDocumentAtomic(v Document) (Document, error) {
-	ctx := context.Background()
+	ctx := sqlctx.Context()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Document{}, err
@@ -103,7 +103,7 @@ func inventoryPGError(err error) error {
 func (s *PostgresStore) existingOperation(org, key, warehouse, sku, action string, quantity int64) (Stock, error) {
 	var oldWarehouse, oldSKU, oldAction string
 	var oldQty int64
-	err := s.db.QueryRowContext(context.Background(), `SELECT warehouse_id,sku_id,action,quantity FROM inventory_operations WHERE organization_id=$1 AND idempotency_key=$2`, org, key).Scan(&oldWarehouse, &oldSKU, &oldAction, &oldQty)
+	err := s.db.QueryRowContext(sqlctx.Context(), `SELECT warehouse_id,sku_id,action,quantity FROM inventory_operations WHERE organization_id=$1 AND idempotency_key=$2`, org, key).Scan(&oldWarehouse, &oldSKU, &oldAction, &oldQty)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Stock{}, ErrNotFound
 	}
@@ -117,24 +117,24 @@ func (s *PostgresStore) existingOperation(org, key, warehouse, sku, action strin
 }
 func (s *PostgresStore) Get(org, warehouse, sku string) (Stock, error) {
 	var v Stock
-	e := s.db.QueryRowContext(context.Background(), `SELECT organization_id,warehouse_id,sku_id,on_hand,reserved,on_hand-reserved,updated_at FROM inventory_stocks WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3`, org, warehouse, sku).Scan(&v.OrganizationID, &v.WarehouseID, &v.SKUID, &v.OnHand, &v.Reserved, &v.Available, &v.UpdatedAt)
+	e := s.db.QueryRowContext(sqlctx.Context(), `SELECT organization_id,warehouse_id,sku_id,on_hand,reserved,on_hand-reserved,updated_at FROM inventory_stocks WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3`, org, warehouse, sku).Scan(&v.OrganizationID, &v.WarehouseID, &v.SKUID, &v.OnHand, &v.Reserved, &v.Available, &v.UpdatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		return Stock{}, ErrNotFound
 	}
 	return v, e
 }
 func (s *PostgresStore) Put(v Stock) error {
-	_, e := s.db.ExecContext(context.Background(), `INSERT INTO inventory_stocks (organization_id,warehouse_id,sku_id,on_hand,reserved,updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (organization_id,warehouse_id,sku_id) DO UPDATE SET on_hand=EXCLUDED.on_hand,reserved=EXCLUDED.reserved,updated_at=EXCLUDED.updated_at`, v.OrganizationID, v.WarehouseID, v.SKUID, v.OnHand, v.Reserved, v.UpdatedAt)
+	_, e := s.db.ExecContext(sqlctx.Context(), `INSERT INTO inventory_stocks (organization_id,warehouse_id,sku_id,on_hand,reserved,updated_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (organization_id,warehouse_id,sku_id) DO UPDATE SET on_hand=EXCLUDED.on_hand,reserved=EXCLUDED.reserved,updated_at=EXCLUDED.updated_at`, v.OrganizationID, v.WarehouseID, v.SKUID, v.OnHand, v.Reserved, v.UpdatedAt)
 	return e
 }
 func (s *PostgresStore) ImportStocks(values []Stock, at time.Time) error {
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(sqlctx.Context(), nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	for _, value := range values {
-		_, err = tx.ExecContext(context.Background(), `
+		_, err = tx.ExecContext(sqlctx.Context(), `
 			INSERT INTO inventory_stocks (organization_id,warehouse_id,sku_id,on_hand,reserved,updated_at)
 			VALUES ($1,$2,$3,$4,$5,$6)
 			ON CONFLICT (organization_id,warehouse_id,sku_id) DO UPDATE
@@ -147,7 +147,7 @@ func (s *PostgresStore) ImportStocks(values []Stock, at time.Time) error {
 	return tx.Commit()
 }
 func (s *PostgresStore) List(org string) []Stock {
-	rows, e := s.db.QueryContext(context.Background(), `SELECT organization_id,warehouse_id,sku_id,on_hand,reserved,on_hand-reserved,updated_at FROM inventory_stocks WHERE organization_id=$1 ORDER BY warehouse_id,sku_id`, org)
+	rows, e := s.db.QueryContext(sqlctx.Context(), `SELECT organization_id,warehouse_id,sku_id,on_hand,reserved,on_hand-reserved,updated_at FROM inventory_stocks WHERE organization_id=$1 ORDER BY warehouse_id,sku_id`, org)
 	if e != nil {
 		return []Stock{}
 	}
@@ -162,7 +162,7 @@ func (s *PostgresStore) List(org string) []Stock {
 	return out
 }
 func (s *PostgresStore) Apply(org, warehouse, sku, action string, quantity int64, idempotencyKey string, at time.Time) (Stock, error) {
-	ctx := context.Background()
+	ctx := sqlctx.Context()
 	tx, e := s.db.BeginTx(ctx, nil)
 	if e != nil {
 		return Stock{}, e
@@ -233,7 +233,7 @@ func (s *PostgresStore) Apply(org, warehouse, sku, action string, quantity int64
 	return Stock{OrganizationID: org, WarehouseID: warehouse, SKUID: sku, OnHand: onHand, Reserved: reserved, Available: onHand - reserved, UpdatedAt: at}, nil
 }
 func (s *PostgresStore) CreateDocument(v Document) error {
-	ctx := context.Background()
+	ctx := sqlctx.Context()
 	tx, e := s.db.BeginTx(ctx, nil)
 	if e != nil {
 		return e
@@ -251,7 +251,7 @@ func (s *PostgresStore) CreateDocument(v Document) error {
 	return tx.Commit()
 }
 func (s *PostgresStore) lines(id string) []DocumentLine {
-	rows, e := s.db.QueryContext(context.Background(), `SELECT warehouse_id,sku_id,quantity FROM inventory_document_lines WHERE document_id=$1 ORDER BY id`, id)
+	rows, e := s.db.QueryContext(sqlctx.Context(), `SELECT warehouse_id,sku_id,quantity FROM inventory_document_lines WHERE document_id=$1 ORDER BY id`, id)
 	if e != nil {
 		return []DocumentLine{}
 	}
@@ -267,7 +267,7 @@ func (s *PostgresStore) lines(id string) []DocumentLine {
 }
 func (s *PostgresStore) GetDocument(id string) (Document, error) {
 	var v Document
-	e := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,document_type,idempotency_key,created_at FROM inventory_documents WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.Type, &v.IdempotencyKey, &v.CreatedAt)
+	e := s.db.QueryRowContext(sqlctx.Context(), `SELECT id,organization_id,document_type,idempotency_key,created_at FROM inventory_documents WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.Type, &v.IdempotencyKey, &v.CreatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		return Document{}, ErrNotFound
 	}
@@ -285,7 +285,7 @@ func (s *PostgresStore) ListDocuments(org string, typ DocumentType) []Document {
 		args = append(args, typ)
 	}
 	query += ` ORDER BY created_at`
-	rows, e := s.db.QueryContext(context.Background(), query, args...)
+	rows, e := s.db.QueryContext(sqlctx.Context(), query, args...)
 	if e != nil {
 		return []Document{}
 	}
@@ -302,7 +302,7 @@ func (s *PostgresStore) ListDocuments(org string, typ DocumentType) []Document {
 }
 func (s *PostgresStore) FindDocumentByKey(org string, typ DocumentType, key string) (Document, error) {
 	var id string
-	e := s.db.QueryRowContext(context.Background(), `SELECT id FROM inventory_documents WHERE organization_id=$1 AND document_type=$2 AND idempotency_key=$3`, org, typ, key).Scan(&id)
+	e := s.db.QueryRowContext(sqlctx.Context(), `SELECT id FROM inventory_documents WHERE organization_id=$1 AND document_type=$2 AND idempotency_key=$3`, org, typ, key).Scan(&id)
 	if errors.Is(e, sql.ErrNoRows) {
 		return Document{}, ErrNotFound
 	}

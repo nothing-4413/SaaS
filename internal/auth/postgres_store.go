@@ -1,13 +1,13 @@
 package auth
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nothing-4413/saas/internal/platform/sqlctx"
 )
 
 type PostgresStore struct{ db *sql.DB }
@@ -21,7 +21,7 @@ func pgError(err error) error {
 	return err
 }
 func (s *PostgresStore) CreateOrganization(v Organization) error {
-	_, e := s.db.ExecContext(context.Background(), `INSERT INTO organizations (id,name,created_at) VALUES ($1,$2,$3)`, v.ID, v.Name, v.CreatedAt)
+	_, e := s.db.ExecContext(sqlctx.Context(), `INSERT INTO organizations (id,name,created_at) VALUES ($1,$2,$3)`, v.ID, v.Name, v.CreatedAt)
 	return pgError(e)
 }
 func (s *PostgresStore) CreateOrganizationOwner(org Organization, role Role, user User) error {
@@ -29,7 +29,7 @@ func (s *PostgresStore) CreateOrganizationOwner(org Organization, role Role, use
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(sqlctx.Context(), nil)
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func (s *PostgresStore) CreateOrganizationOwner(org Organization, role Role, use
 }
 func (s *PostgresStore) GetOrganization(id string) (Organization, error) {
 	var v Organization
-	e := s.db.QueryRowContext(context.Background(), `SELECT id,name,created_at FROM organizations WHERE id=$1`, id).Scan(&v.ID, &v.Name, &v.CreatedAt)
+	e := s.db.QueryRowContext(sqlctx.Context(), `SELECT id,name,created_at FROM organizations WHERE id=$1`, id).Scan(&v.ID, &v.Name, &v.CreatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		return Organization{}, ErrNotFound
 	}
@@ -61,7 +61,7 @@ func (s *PostgresStore) CreateRole(v Role) error {
 	if e != nil {
 		return e
 	}
-	_, e = s.db.ExecContext(context.Background(), `INSERT INTO roles (id,organization_id,name,permissions) VALUES ($1,$2,$3,$4)`, v.ID, v.OrganizationID, v.Name, b)
+	_, e = s.db.ExecContext(sqlctx.Context(), `INSERT INTO roles (id,organization_id,name,permissions) VALUES ($1,$2,$3,$4)`, v.ID, v.OrganizationID, v.Name, b)
 	return pgError(e)
 }
 func scanRole(scanner interface{ Scan(...interface{}) error }) (Role, error) {
@@ -75,7 +75,7 @@ func scanRole(scanner interface{ Scan(...interface{}) error }) (Role, error) {
 	return v, e
 }
 func (s *PostgresStore) ListRoles(org string) []Role {
-	rows, e := s.db.QueryContext(context.Background(), `SELECT id,organization_id,name,permissions FROM roles WHERE organization_id=$1 ORDER BY name`, org)
+	rows, e := s.db.QueryContext(sqlctx.Context(), `SELECT id,organization_id,name,permissions FROM roles WHERE organization_id=$1 ORDER BY name`, org)
 	if e != nil {
 		return []Role{}
 	}
@@ -90,7 +90,7 @@ func (s *PostgresStore) ListRoles(org string) []Role {
 	return out
 }
 func (s *PostgresStore) GetRole(id string) (Role, error) {
-	v, e := scanRole(s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,name,permissions FROM roles WHERE id=$1`, id))
+	v, e := scanRole(s.db.QueryRowContext(sqlctx.Context(), `SELECT id,organization_id,name,permissions FROM roles WHERE id=$1`, id))
 	if errors.Is(e, sql.ErrNoRows) {
 		return Role{}, ErrNotFound
 	}
@@ -101,14 +101,14 @@ func (s *PostgresStore) UpdateRole(v Role) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(context.Background(), `UPDATE roles SET name=$3,permissions=$4 WHERE organization_id=$1 AND id=$2`, v.OrganizationID, v.ID, v.Name, b)
+	_, err = s.db.ExecContext(sqlctx.Context(), `UPDATE roles SET name=$3,permissions=$4 WHERE organization_id=$1 AND id=$2`, v.OrganizationID, v.ID, v.Name, b)
 	if err != nil {
 		return pgError(err)
 	}
 	return nil
 }
 func (s *PostgresStore) CreateUser(v User) error {
-	tx, e := s.db.BeginTx(context.Background(), nil)
+	tx, e := s.db.BeginTx(sqlctx.Context(), nil)
 	if e != nil {
 		return e
 	}
@@ -125,7 +125,7 @@ func (s *PostgresStore) CreateUser(v User) error {
 	return tx.Commit()
 }
 func (s *PostgresStore) UpdateUser(v User) error {
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(sqlctx.Context(), nil)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func (s *PostgresStore) UpdateUser(v User) error {
 	return tx.Commit()
 }
 func (s *PostgresStore) rolesForUser(id string) []string {
-	rows, e := s.db.QueryContext(context.Background(), `SELECT role_id FROM user_roles WHERE user_id=$1 ORDER BY role_id`, id)
+	rows, e := s.db.QueryContext(sqlctx.Context(), `SELECT role_id FROM user_roles WHERE user_id=$1 ORDER BY role_id`, id)
 	if e != nil {
 		return []string{}
 	}
@@ -163,7 +163,7 @@ func (s *PostgresStore) rolesForUser(id string) []string {
 	return out
 }
 func (s *PostgresStore) ListUsers(org string) []User {
-	rows, e := s.db.QueryContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE organization_id=$1 ORDER BY created_at`, org)
+	rows, e := s.db.QueryContext(sqlctx.Context(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE organization_id=$1 ORDER BY created_at`, org)
 	if e != nil {
 		return []User{}
 	}
@@ -180,7 +180,7 @@ func (s *PostgresStore) ListUsers(org string) []User {
 }
 func (s *PostgresStore) GetUser(id string) (User, error) {
 	var v User
-	e := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.Active, &v.CreatedAt)
+	e := s.db.QueryRowContext(sqlctx.Context(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.Active, &v.CreatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -192,7 +192,7 @@ func (s *PostgresStore) GetUser(id string) (User, error) {
 }
 func (s *PostgresStore) FindUserByEmail(org, email string) (User, error) {
 	var v User
-	e := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE organization_id=$1 AND email=$2`, org, email).Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.Active, &v.CreatedAt)
+	e := s.db.QueryRowContext(sqlctx.Context(), `SELECT id,organization_id,email,name,password_hash,active,created_at FROM users WHERE organization_id=$1 AND email=$2`, org, email).Scan(&v.ID, &v.OrganizationID, &v.Email, &v.Name, &v.PasswordHash, &v.Active, &v.CreatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		return User{}, ErrNotFound
 	}
@@ -204,13 +204,13 @@ func (s *PostgresStore) FindUserByEmail(org, email string) (User, error) {
 }
 
 func (s *PostgresStore) CreateSession(v Session) error {
-	_, err := s.db.ExecContext(context.Background(), `INSERT INTO auth_sessions (id,organization_id,user_id,expires_at,created_at) VALUES ($1,$2,$3,$4,$5)`, v.ID, v.OrganizationID, v.UserID, v.ExpiresAt, v.CreatedAt)
+	_, err := s.db.ExecContext(sqlctx.Context(), `INSERT INTO auth_sessions (id,organization_id,user_id,expires_at,created_at) VALUES ($1,$2,$3,$4,$5)`, v.ID, v.OrganizationID, v.UserID, v.ExpiresAt, v.CreatedAt)
 	return pgError(err)
 }
 func (s *PostgresStore) GetSession(id string) (Session, error) {
 	var v Session
 	var revoked sql.NullTime
-	err := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,user_id,expires_at,created_at,revoked_at FROM auth_sessions WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.UserID, &v.ExpiresAt, &v.CreatedAt, &revoked)
+	err := s.db.QueryRowContext(sqlctx.Context(), `SELECT id,organization_id,user_id,expires_at,created_at,revoked_at FROM auth_sessions WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.UserID, &v.ExpiresAt, &v.CreatedAt, &revoked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Session{}, ErrNotFound
 	}
@@ -220,7 +220,7 @@ func (s *PostgresStore) GetSession(id string) (Session, error) {
 	return v, err
 }
 func (s *PostgresStore) RevokeSession(id string, at time.Time) error {
-	result, err := s.db.ExecContext(context.Background(), `UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,$2) WHERE id=$1`, id, at)
+	result, err := s.db.ExecContext(sqlctx.Context(), `UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,$2) WHERE id=$1`, id, at)
 	if err != nil {
 		return err
 	}
@@ -232,7 +232,7 @@ func (s *PostgresStore) RevokeSession(id string, at time.Time) error {
 
 func (s *PostgresStore) RecordLoginFailure(org, email string, now time.Time, maxAttempts int, lockout time.Duration) (bool, error) {
 	var lockedUntil sql.NullTime
-	err := s.db.QueryRowContext(context.Background(), `
+	err := s.db.QueryRowContext(sqlctx.Context(), `
 		INSERT INTO auth_login_attempts (organization_id,email,failed_attempts,locked_until,updated_at)
 		VALUES ($1,$2,1,NULL,$3)
 		ON CONFLICT (organization_id,email) DO UPDATE SET
@@ -251,13 +251,13 @@ func (s *PostgresStore) RecordLoginFailure(org, email string, now time.Time, max
 }
 
 func (s *PostgresStore) ClearLoginFailures(org, email string) error {
-	_, err := s.db.ExecContext(context.Background(), `DELETE FROM auth_login_attempts WHERE organization_id=$1 AND email=$2`, org, email)
+	_, err := s.db.ExecContext(sqlctx.Context(), `DELETE FROM auth_login_attempts WHERE organization_id=$1 AND email=$2`, org, email)
 	return err
 }
 
 func (s *PostgresStore) IsLoginLocked(org, email string, now time.Time) (bool, error) {
 	var locked bool
-	err := s.db.QueryRowContext(context.Background(), `SELECT locked_until IS NOT NULL AND locked_until > $3 FROM auth_login_attempts WHERE organization_id=$1 AND email=$2`, org, email, now).Scan(&locked)
+	err := s.db.QueryRowContext(sqlctx.Context(), `SELECT locked_until IS NOT NULL AND locked_until > $3 FROM auth_login_attempts WHERE organization_id=$1 AND email=$2`, org, email, now).Scan(&locked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -265,7 +265,7 @@ func (s *PostgresStore) IsLoginLocked(org, email string, now time.Time) (bool, e
 }
 
 func (s *PostgresStore) CreatePasswordResetToken(org, userID, tokenHash string, expiresAt, now time.Time) error {
-	result, err := s.db.ExecContext(context.Background(), `
+	result, err := s.db.ExecContext(sqlctx.Context(), `
 		INSERT INTO password_reset_tokens (token_hash,organization_id,user_id,expires_at,created_at)
 		SELECT $1,$2,$3,$4,$5
 		WHERE EXISTS (SELECT 1 FROM users WHERE organization_id=$2 AND id=$3 AND active=true)`, tokenHash, org, userID, expiresAt, now)
@@ -279,13 +279,13 @@ func (s *PostgresStore) CreatePasswordResetToken(org, userID, tokenHash string, 
 }
 
 func (s *PostgresStore) ResetPassword(org, tokenHash, passwordHash string, now time.Time) error {
-	tx, err := s.db.BeginTx(context.Background(), nil)
+	tx, err := s.db.BeginTx(sqlctx.Context(), nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 	var tokenOrg, userID string
-	err = tx.QueryRowContext(context.Background(), `
+	err = tx.QueryRowContext(sqlctx.Context(), `
 		SELECT organization_id,user_id FROM password_reset_tokens
 		WHERE organization_id=$1 AND token_hash=$2 AND used_at IS NULL AND expires_at > $3 FOR UPDATE`, org, tokenHash, now).Scan(&tokenOrg, &userID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -294,17 +294,17 @@ func (s *PostgresStore) ResetPassword(org, tokenHash, passwordHash string, now t
 	if err != nil {
 		return err
 	}
-	result, err := tx.ExecContext(context.Background(), `UPDATE users SET password_hash=$3 WHERE organization_id=$1 AND id=$2 AND active=true`, tokenOrg, userID, passwordHash)
+	result, err := tx.ExecContext(sqlctx.Context(), `UPDATE users SET password_hash=$3 WHERE organization_id=$1 AND id=$2 AND active=true`, tokenOrg, userID, passwordHash)
 	if err != nil {
 		return err
 	}
 	if count, _ := result.RowsAffected(); count == 0 {
 		return ErrInvalidResetToken
 	}
-	if _, err = tx.ExecContext(context.Background(), `UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,$3) WHERE organization_id=$1 AND user_id=$2 AND revoked_at IS NULL`, tokenOrg, userID, now); err != nil {
+	if _, err = tx.ExecContext(sqlctx.Context(), `UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,$3) WHERE organization_id=$1 AND user_id=$2 AND revoked_at IS NULL`, tokenOrg, userID, now); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(context.Background(), `UPDATE password_reset_tokens SET used_at=$2 WHERE token_hash=$1`, tokenHash, now); err != nil {
+	if _, err = tx.ExecContext(sqlctx.Context(), `UPDATE password_reset_tokens SET used_at=$2 WHERE token_hash=$1`, tokenHash, now); err != nil {
 		return err
 	}
 	return tx.Commit()

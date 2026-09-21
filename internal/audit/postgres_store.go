@@ -1,9 +1,10 @@
 package audit
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
+
+	"github.com/nothing-4413/saas/internal/platform/sqlctx"
 )
 
 type PostgresStore struct{ db *sql.DB }
@@ -19,7 +20,7 @@ func (s *PostgresStore) Append(v Entry) error {
 	if v.ActorUserID != "" {
 		actor = v.ActorUserID
 	}
-	_, err = s.db.ExecContext(context.Background(), `
+	_, err = s.db.ExecContext(sqlctx.Context(), `
 		INSERT INTO audit_logs (id,organization_id,actor_user_id,action,resource_type,resource_id,metadata,created_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		v.ID, v.OrganizationID, actor, v.Action, v.ResourceType, v.ResourceID, metadata, v.CreatedAt)
@@ -27,7 +28,7 @@ func (s *PostgresStore) Append(v Entry) error {
 }
 
 func (s *PostgresStore) List(org string) []Entry {
-	rows, err := s.db.QueryContext(context.Background(), `
+	rows, err := s.db.QueryContext(sqlctx.Context(), `
 		SELECT id,organization_id,actor_user_id,action,resource_type,resource_id,metadata,created_at
 		FROM audit_logs WHERE organization_id=$1 ORDER BY created_at DESC LIMIT 500`, org)
 	if err != nil {

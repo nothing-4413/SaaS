@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/nothing-4413/saas/internal/platform/idgen"
+	"github.com/nothing-4413/saas/internal/platform/sqlctx"
 )
 
 type PostgresStore struct{ db *sql.DB }
@@ -40,7 +41,7 @@ func orderLineOrder(lines []Line) []int {
 }
 
 func (s *PostgresStore) CreateAtomic(v Order) (Order, error) {
-	ctx := context.Background()
+	ctx := sqlctx.Context()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Order{}, err
@@ -111,7 +112,7 @@ func insertOrderEvent(ctx context.Context, tx *sql.Tx, value Order, eventType st
 }
 
 func (s *PostgresStore) TransitionAtomic(org, id string, target Status, now time.Time) (Order, error) {
-	ctx := context.Background()
+	ctx := sqlctx.Context()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Order{}, err
@@ -195,7 +196,7 @@ func linesTx(ctx context.Context, tx *sql.Tx, id string) []Line {
 	return lines
 }
 func (s *PostgresStore) Create(v Order) error {
-	ctx := context.Background()
+	ctx := sqlctx.Context()
 	tx, e := s.db.BeginTx(ctx, nil)
 	if e != nil {
 		return e
@@ -213,7 +214,7 @@ func (s *PostgresStore) Create(v Order) error {
 	return tx.Commit()
 }
 func (s *PostgresStore) Delete(id string) error {
-	result, e := s.db.ExecContext(context.Background(), `DELETE FROM orders WHERE id=$1`, id)
+	result, e := s.db.ExecContext(sqlctx.Context(), `DELETE FROM orders WHERE id=$1`, id)
 	if e != nil {
 		return e
 	}
@@ -224,7 +225,7 @@ func (s *PostgresStore) Delete(id string) error {
 	return nil
 }
 func (s *PostgresStore) lines(id string) []Line {
-	rows, e := s.db.QueryContext(context.Background(), `SELECT sku_id,warehouse_id,quantity,unit_price_cents FROM order_lines WHERE order_id=$1 ORDER BY id`, id)
+	rows, e := s.db.QueryContext(sqlctx.Context(), `SELECT sku_id,warehouse_id,quantity,unit_price_cents FROM order_lines WHERE order_id=$1 ORDER BY id`, id)
 	if e != nil {
 		return []Line{}
 	}
@@ -240,7 +241,7 @@ func (s *PostgresStore) lines(id string) []Line {
 }
 func (s *PostgresStore) Get(id string) (Order, error) {
 	var v Order
-	e := s.db.QueryRowContext(context.Background(), `SELECT id,organization_id,idempotency_key,status,total_cents,created_at,updated_at FROM orders WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.IdempotencyKey, &v.Status, &v.TotalCents, &v.CreatedAt, &v.UpdatedAt)
+	e := s.db.QueryRowContext(sqlctx.Context(), `SELECT id,organization_id,idempotency_key,status,total_cents,created_at,updated_at FROM orders WHERE id=$1`, id).Scan(&v.ID, &v.OrganizationID, &v.IdempotencyKey, &v.Status, &v.TotalCents, &v.CreatedAt, &v.UpdatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		return Order{}, ErrNotFound
 	}
@@ -251,7 +252,7 @@ func (s *PostgresStore) Get(id string) (Order, error) {
 	return v, nil
 }
 func (s *PostgresStore) Put(v Order) error {
-	result, e := s.db.ExecContext(context.Background(), `UPDATE orders SET status=$2,total_cents=$3,updated_at=$4 WHERE id=$1`, v.ID, v.Status, v.TotalCents, v.UpdatedAt)
+	result, e := s.db.ExecContext(sqlctx.Context(), `UPDATE orders SET status=$2,total_cents=$3,updated_at=$4 WHERE id=$1`, v.ID, v.Status, v.TotalCents, v.UpdatedAt)
 	if e != nil {
 		return e
 	}
@@ -262,7 +263,7 @@ func (s *PostgresStore) Put(v Order) error {
 	return nil
 }
 func (s *PostgresStore) List(org string) []Order {
-	rows, e := s.db.QueryContext(context.Background(), `SELECT id,organization_id,idempotency_key,status,total_cents,created_at,updated_at FROM orders WHERE organization_id=$1 ORDER BY created_at`, org)
+	rows, e := s.db.QueryContext(sqlctx.Context(), `SELECT id,organization_id,idempotency_key,status,total_cents,created_at,updated_at FROM orders WHERE organization_id=$1 ORDER BY created_at`, org)
 	if e != nil {
 		return []Order{}
 	}
@@ -279,7 +280,7 @@ func (s *PostgresStore) List(org string) []Order {
 }
 func (s *PostgresStore) FindByKey(org, key string) (Order, error) {
 	var id string
-	e := s.db.QueryRowContext(context.Background(), `SELECT id FROM orders WHERE organization_id=$1 AND idempotency_key=$2`, org, key).Scan(&id)
+	e := s.db.QueryRowContext(sqlctx.Context(), `SELECT id FROM orders WHERE organization_id=$1 AND idempotency_key=$2`, org, key).Scan(&id)
 	if errors.Is(e, sql.ErrNoRows) {
 		return Order{}, ErrNotFound
 	}
