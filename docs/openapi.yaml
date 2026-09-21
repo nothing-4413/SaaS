@@ -81,7 +81,15 @@ paths:
     get:
       summary: List orders
       security: [{ bearerAuth: [] }]
-      responses: { '200': { description: Order list } }
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/Query' }
+        - { $ref: '#/components/parameters/Order' }
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, confirmed, paid, shipped, completed, cancelled, refunded] }
+      responses: { '200': { description: Paginated orders, content: { application/json: { schema: { $ref: '#/components/schemas/OrderPage' } } } } }
     post:
       summary: Create order and reserve stock
       security: [{ bearerAuth: [] }]
@@ -314,12 +322,6 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
       responses: { '200': { description: CSV download, content: { text/csv: {} } } }
-  /organizations/{organizationId}/stocks:
-    get:
-      summary: List stock balances
-      security: [{ bearerAuth: [] }]
-      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
-      responses: { '200': { description: Stock list } }
   /organizations/{organizationId}/imports/stocks:
     post:
       summary: Validate and atomically import stock CSV
@@ -435,7 +437,131 @@ components:
   parameters:
     OrganizationId: { name: organizationId, in: path, required: true, schema: { type: string } }
     OrderId: { name: orderId, in: path, required: true, schema: { type: string } }
+    ProductId: { name: productId, in: path, required: true, schema: { type: string } }
+    WarehouseId: { name: warehouseId, in: path, required: true, schema: { type: string } }
+    SkuId: { name: skuId, in: path, required: true, schema: { type: string } }
+    DocumentId: { name: documentId, in: path, required: true, schema: { type: string } }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: page_size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Query: { name: q, in: query, schema: { type: string } }
+    Sort: { name: sort, in: query, schema: { type: string } }
+    Order: { name: order, in: query, schema: { type: string, enum: [asc, desc], default: asc } }
   schemas:
+    PageMeta:
+      type: object
+      required: [page, page_size, total]
+      properties:
+        page: { type: integer, minimum: 1 }
+        page_size: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, format: int64, minimum: 0 }
+    Product:
+      type: object
+      required: [id, organization_id, name]
+      properties:
+        id: { type: string }
+        organization_id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        created_at: { type: string, format: date-time }
+    SKU:
+      type: object
+      required: [id, organization_id, product_id, code, name, price_cents]
+      properties:
+        id: { type: string }
+        organization_id: { type: string }
+        product_id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        price_cents: { type: integer, format: int64, minimum: 0 }
+    Warehouse:
+      type: object
+      required: [id, organization_id, name]
+      properties:
+        id: { type: string }
+        organization_id: { type: string }
+        name: { type: string }
+        address: { type: string }
+        created_at: { type: string, format: date-time }
+    Stock:
+      type: object
+      required: [organization_id, warehouse_id, sku_id, on_hand, reserved, available]
+      properties:
+        organization_id: { type: string }
+        warehouse_id: { type: string }
+        sku_id: { type: string }
+        on_hand: { type: integer, format: int64 }
+        reserved: { type: integer, format: int64 }
+        available: { type: integer, format: int64 }
+        updated_at: { type: string, format: date-time }
+    Order:
+      type: object
+      properties:
+        id: { type: string }
+        organization_id: { type: string }
+        idempotency_key: { type: string }
+        status: { type: string }
+        total_cents: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    InventoryDocument:
+      type: object
+      properties:
+        id: { type: string }
+        organization_id: { type: string }
+        document_type: { type: string, enum: [receipt, issue] }
+        idempotency_key: { type: string }
+        created_at: { type: string, format: date-time }
+        lines: { type: array, items: { $ref: '#/components/schemas/DocumentLine' } }
+    DocumentLine:
+      type: object
+      required: [warehouse_id, sku_id, quantity]
+      properties:
+        warehouse_id: { type: string }
+        sku_id: { type: string }
+        quantity: { type: integer, format: int64, minimum: 1 }
+    CreateProduct:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+    CreateSKU:
+      type: object
+      required: [code, name, price_cents]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        price_cents: { type: integer, format: int64, minimum: 0 }
+    CreateWarehouse:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        address: { type: string }
+    StockOperation:
+      type: object
+      required: [idempotency_key, quantity]
+      properties:
+        idempotency_key: { type: string }
+        quantity: { type: integer, format: int64, minimum: 1 }
+    CreateDocument:
+      type: object
+      required: [idempotency_key, lines]
+      properties:
+        idempotency_key: { type: string }
+        lines: { type: array, minItems: 1, items: { $ref: '#/components/schemas/DocumentLine' } }
+    ProductPage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Product' } } } }] }
+    SKUPage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/SKU' } } } }] }
+    WarehousePage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Warehouse' } } } }] }
+    StockPage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Stock' } } } }] }
+    OrderPage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Order' } } } }] }
+    DocumentPage: { allOf: [{ $ref: '#/components/schemas/PageMeta' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/InventoryDocument' } } } }] }
     CreateOrganization:
       type: object
       required: [name, owner_email, owner_name, owner_password]
