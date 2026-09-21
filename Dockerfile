@@ -10,5 +10,5 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /out/saas-api /usr/local/bin/saas-api
 COPY --from=build /out/saas-worker /usr/local/bin/saas-worker
 USER app
-EXPOSE 8080
+EXPOSE 8080 9090
 ENTRYPOINT ["/usr/local/bin/saas-api"]
