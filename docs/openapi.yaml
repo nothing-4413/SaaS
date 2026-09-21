@@ -91,6 +91,159 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/CreateOrder' }
       responses: { '201': { description: Created }, '409': { description: Insufficient stock or conflict } }
+  /organizations/{organizationId}/products:
+    parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+    get:
+      summary: List products in the organization
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/Query' }
+        - { $ref: '#/components/parameters/Sort' }
+        - { $ref: '#/components/parameters/Order' }
+      responses: { '200': { description: Paginated products, content: { application/json: { schema: { $ref: '#/components/schemas/ProductPage' } } } } }
+    post:
+      summary: Create a product
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateProduct' } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } }, '409': { description: Conflict } }
+  /organizations/{organizationId}/products/{productId}/skus:
+    parameters:
+      - { $ref: '#/components/parameters/OrganizationId' }
+      - { $ref: '#/components/parameters/ProductId' }
+    get:
+      summary: List SKUs for a product
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/Query' }
+        - { $ref: '#/components/parameters/Sort' }
+        - { $ref: '#/components/parameters/Order' }
+      responses: { '200': { description: Paginated SKUs, content: { application/json: { schema: { $ref: '#/components/schemas/SKUPage' } } } } }
+    post:
+      summary: Create a SKU under a product
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateSKU' } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/SKU' } } } }, '409': { description: Conflict } }
+  /organizations/{organizationId}/warehouses:
+    parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+    get:
+      summary: List warehouses in the organization
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/Query' }
+        - { $ref: '#/components/parameters/Sort' }
+        - { $ref: '#/components/parameters/Order' }
+      responses: { '200': { description: Paginated warehouses, content: { application/json: { schema: { $ref: '#/components/schemas/WarehousePage' } } } } }
+    post:
+      summary: Create a warehouse
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateWarehouse' } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Warehouse' } } } }, '409': { description: Conflict } }
+  /organizations/{organizationId}/stocks:
+    get:
+      summary: List stock balances
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/Query' }
+        - { $ref: '#/components/parameters/Sort' }
+        - { $ref: '#/components/parameters/Order' }
+      responses: { '200': { description: Paginated stock balances, content: { application/json: { schema: { $ref: '#/components/schemas/StockPage' } } } } }
+  /organizations/{organizationId}/warehouses/{warehouseId}/skus/{skuId}/stock:
+    get:
+      summary: Get one stock balance
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/WarehouseId' }
+        - { $ref: '#/components/parameters/SkuId' }
+      responses: { '200': { description: Stock balance, content: { application/json: { schema: { $ref: '#/components/schemas/Stock' } } } }, '404': { description: Not found } }
+  /organizations/{organizationId}/warehouses/{warehouseId}/skus/{skuId}/stock/{action}:
+    post:
+      summary: Apply an idempotent stock operation
+      description: Action is one of receive, reserve, release, or deduct. The operation is atomic and requires an idempotency key.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/WarehouseId' }
+        - { $ref: '#/components/parameters/SkuId' }
+        - name: action
+          in: path
+          required: true
+          schema: { type: string, enum: [receive, reserve, release, deduct] }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/StockOperation' } }
+      responses: { '200': { description: Updated stock, content: { application/json: { schema: { $ref: '#/components/schemas/Stock' } } } }, '409': { description: Conflict or insufficient stock } }
+  /organizations/{organizationId}/receipts:
+    parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+    get:
+      summary: List inbound receipt documents
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/Order' }
+      responses: { '200': { description: Paginated receipt documents, content: { application/json: { schema: { $ref: '#/components/schemas/DocumentPage' } } } } }
+    post:
+      summary: Create an inbound receipt document
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateDocument' } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryDocument' } } } }, '409': { description: Conflict or insufficient stock } }
+  /organizations/{organizationId}/receipts/{documentId}:
+    get:
+      summary: Get an inbound receipt document
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/DocumentId' }
+      responses: { '200': { description: Receipt document, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryDocument' } } } }, '404': { description: Not found } }
+  /organizations/{organizationId}/issues:
+    parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+    get:
+      summary: List outbound issue documents
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { $ref: '#/components/parameters/Order' }
+      responses: { '200': { description: Paginated issue documents, content: { application/json: { schema: { $ref: '#/components/schemas/DocumentPage' } } } } }
+    post:
+      summary: Create an outbound issue document
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateDocument' } }
+      responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryDocument' } } } }, '409': { description: Conflict or insufficient stock } }
+  /organizations/{organizationId}/issues/{documentId}:
+    get:
+      summary: Get an outbound issue document
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/DocumentId' }
+      responses: { '200': { description: Issue document, content: { application/json: { schema: { $ref: '#/components/schemas/InventoryDocument' } } } }, '404': { description: Not found } }
   /organizations/{organizationId}/orders/{orderId}/confirm:
     post:
       summary: Confirm order and deduct reserved stock
