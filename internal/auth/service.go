@@ -244,10 +244,32 @@ func (s *Service) HasPermission(orgID, userID string, permission Permission) (bo
 			continue
 		}
 		for _, p := range r.Permissions {
-			if p == permission {
+			if permissionIncludes(p, permission) {
 				return true, nil
 			}
 		}
 	}
 	return false, nil
+}
+
+// permissionIncludes keeps the original manage permissions valid while new
+// roles can grant least-privilege read/write/import/export/approve access.
+func permissionIncludes(granted, requested Permission) bool {
+	if granted == requested {
+		return true
+	}
+	switch granted {
+	case PermissionRoleManage:
+		return requested == PermissionRoleRead
+	case PermissionProductManage:
+		return requested == PermissionProductRead || requested == PermissionProductWrite
+	case PermissionInventoryManage:
+		return requested == PermissionInventoryRead || requested == PermissionInventoryWrite || requested == PermissionInventoryImport || requested == PermissionInventoryExport
+	case PermissionOrderManage:
+		return requested == PermissionOrderRead || requested == PermissionOrderWrite || requested == PermissionOrderApprove
+	case PermissionReportRead:
+		return requested == PermissionReportExport
+	default:
+		return false
+	}
 }

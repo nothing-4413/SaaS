@@ -7,11 +7,22 @@ type Permission string
 const (
 	PermissionUserRead        Permission = "user:read"
 	PermissionUserWrite       Permission = "user:write"
+	PermissionRoleRead        Permission = "role:read"
 	PermissionRoleManage      Permission = "role:manage"
+	PermissionProductRead     Permission = "product:read"
+	PermissionProductWrite    Permission = "product:write"
 	PermissionProductManage   Permission = "product:manage"
+	PermissionInventoryRead   Permission = "inventory:read"
+	PermissionInventoryWrite  Permission = "inventory:write"
+	PermissionInventoryImport Permission = "inventory:import"
+	PermissionInventoryExport Permission = "inventory:export"
 	PermissionInventoryManage Permission = "inventory:manage"
+	PermissionOrderRead       Permission = "order:read"
+	PermissionOrderWrite      Permission = "order:write"
+	PermissionOrderApprove    Permission = "order:approve"
 	PermissionOrderManage     Permission = "order:manage"
 	PermissionReportRead      Permission = "report:read"
+	PermissionReportExport    Permission = "report:export"
 	PermissionAuditRead       Permission = "audit:read"
 	PermissionWebhookManage   Permission = "webhook:manage"
 )
@@ -19,11 +30,22 @@ const (
 var AllPermissions = []Permission{
 	PermissionUserRead,
 	PermissionUserWrite,
+	PermissionRoleRead,
 	PermissionRoleManage,
+	PermissionProductRead,
+	PermissionProductWrite,
 	PermissionProductManage,
+	PermissionInventoryRead,
+	PermissionInventoryWrite,
+	PermissionInventoryImport,
+	PermissionInventoryExport,
 	PermissionInventoryManage,
+	PermissionOrderRead,
+	PermissionOrderWrite,
+	PermissionOrderApprove,
 	PermissionOrderManage,
 	PermissionReportRead,
+	PermissionReportExport,
 	PermissionAuditRead,
 	PermissionWebhookManage,
 }

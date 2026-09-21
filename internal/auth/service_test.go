@@ -46,6 +46,25 @@ func TestHasPermissionIsTenantScoped(t *testing.T) {
 	}
 }
 
+func TestManagePermissionIncludesFineGrainedAccess(t *testing.T) {
+	for _, tc := range []struct {
+		granted, requested Permission
+	}{
+		{PermissionProductManage, PermissionProductRead},
+		{PermissionProductManage, PermissionProductWrite},
+		{PermissionInventoryManage, PermissionInventoryImport},
+		{PermissionOrderManage, PermissionOrderApprove},
+		{PermissionReportRead, PermissionReportExport},
+	} {
+		if !permissionIncludes(tc.granted, tc.requested) {
+			t.Fatalf("%s should include %s", tc.granted, tc.requested)
+		}
+	}
+	if permissionIncludes(PermissionProductRead, PermissionProductWrite) {
+		t.Fatal("read permission must not grant write")
+	}
+}
+
 func TestCreateOrganizationBootstrapsOwner(t *testing.T) {
 	s := NewService(NewMemoryStore())
 	o, err := s.CreateOrganization(CreateOrganizationInput{Name: "Acme", OwnerEmail: " OWNER@EXAMPLE.COM ", OwnerName: "Owner", OwnerPassword: "password123"})

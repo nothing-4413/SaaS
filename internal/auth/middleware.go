@@ -38,6 +38,12 @@ func RequireTokenPermission(service *Service, secret string, permission Permissi
 }
 
 func RequireTokenPermissions(service *Service, secrets []string, permission Permission, next http.Handler) http.Handler {
+	return RequireTokenPermissionResolver(service, secrets, func(*http.Request) Permission { return permission }, next)
+}
+
+// RequireTokenPermissionResolver resolves the required permission per request,
+// allowing one resource handler to expose least-privilege read/write actions.
+func RequireTokenPermissionResolver(service *Service, secrets []string, resolve func(*http.Request) Permission, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Fields(r.Header.Get("Authorization"))
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
@@ -57,6 +63,11 @@ func RequireTokenPermissions(service *Service, secrets []string, permission Perm
 		}
 		path := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 		if len(path) >= 2 && path[0] == "organizations" && path[1] != claims.OrganizationID {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		permission := resolve(r)
+		if permission == "" {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}

@@ -28,7 +28,7 @@ import (
 )
 
 type apiHandler struct {
-	authPublic, userRead, userWrite, roleManage                                http.Handler
+	authPublic, userRead, userWrite, roleRead, roleManage                      http.Handler
 	product, inventory, order, report, export, importer, audit, webhook, alert http.Handler
 	metrics, readiness                                                         http.Handler
 }
@@ -65,11 +65,23 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(parts) >= 3 && parts[0] == "organizations" && parts[2] == "roles" {
+		if r.Method == http.MethodGet {
+			h.roleRead.ServeHTTP(w, r)
+			return
+		}
 		h.roleManage.ServeHTTP(w, r)
 		return
 	}
 	if len(parts) == 4 && parts[0] == "organizations" && parts[2] == "alerts" && parts[3] == "stock" {
 		h.alert.ServeHTTP(w, r)
+		return
+	}
+	if strings.Contains(path, "/exports/") {
+		h.export.ServeHTTP(w, r)
+		return
+	}
+	if strings.Contains(path, "/imports/") {
+		h.importer.ServeHTTP(w, r)
 		return
 	}
 	if strings.Contains(path, "/stock") || strings.HasSuffix(path, "/stocks") || strings.Contains(path, "/receipts") || strings.Contains(path, "/issues") {
@@ -82,14 +94,6 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.Contains(path, "/reports/") {
 		h.report.ServeHTTP(w, r)
-		return
-	}
-	if strings.Contains(path, "/exports/") {
-		h.export.ServeHTTP(w, r)
-		return
-	}
-	if strings.Contains(path, "/imports/") {
-		h.importer.ServeHTTP(w, r)
 		return
 	}
 	if strings.Contains(path, "/audit-logs") {
@@ -142,22 +146,43 @@ func main() {
 	protect := func(permission auth.Permission, handler http.Handler) http.Handler {
 		return auth.RequireTokenPermissions(service, authSecrets, permission, audit.Middleware(auditService, handler))
 	}
+	protectResolved := func(resolve func(*http.Request) auth.Permission, handler http.Handler) http.Handler {
+		return auth.RequireTokenPermissionResolver(service, authSecrets, resolve, audit.Middleware(auditService, handler))
+	}
+	methodPermission := func(read, write auth.Permission) func(*http.Request) auth.Permission {
+		return func(r *http.Request) auth.Permission {
+			if r.Method == http.MethodGet {
+				return read
+			}
+			return write
+		}
+	}
 	base := apiHandler{
 		authPublic: authHandler,
 		userRead:   protect(auth.PermissionUserRead, authHandler),
 		userWrite:  protect(auth.PermissionUserWrite, authHandler),
+		roleRead:   protect(auth.PermissionRoleRead, authHandler),
 		roleManage: protect(auth.PermissionRoleManage, authHandler),
-		product:    protect(auth.PermissionProductManage, productHandler),
-		inventory:  protect(auth.PermissionInventoryManage, inventoryHandler),
-		order:      protect(auth.PermissionOrderManage, orderHandler),
-		report:     protect(auth.PermissionReportRead, reportHandler),
-		export:     protect(auth.PermissionReportRead, exportHandler),
-		importer:   protect(auth.PermissionInventoryManage, importerHandler),
-		audit:      protect(auth.PermissionAuditRead, audit.NewHandler(auditService)),
-		webhook:    protect(auth.PermissionWebhookManage, webhook.NewHandler(webhookService)),
-		alert:      protect(auth.PermissionInventoryManage, alertHandler),
-		metrics:    metrics,
-		readiness:  httpx.ReadinessHandler(db),
+		product:    protectResolved(methodPermission(auth.PermissionProductRead, auth.PermissionProductWrite), productHandler),
+		inventory:  protectResolved(methodPermission(auth.PermissionInventoryRead, auth.PermissionInventoryWrite), inventoryHandler),
+		order: protectResolved(func(r *http.Request) auth.Permission {
+			if r.Method == http.MethodGet {
+				return auth.PermissionOrderRead
+			}
+			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+			if len(parts) >= 5 {
+				return auth.PermissionOrderApprove
+			}
+			return auth.PermissionOrderWrite
+		}, orderHandler),
+		report:    protect(auth.PermissionReportRead, reportHandler),
+		export:    protect(auth.PermissionReportExport, exportHandler),
+		importer:  protect(auth.PermissionInventoryImport, importerHandler),
+		audit:     protect(auth.PermissionAuditRead, audit.NewHandler(auditService)),
+		webhook:   protect(auth.PermissionWebhookManage, webhook.NewHandler(webhookService)),
+		alert:     protectResolved(methodPermission(auth.PermissionInventoryRead, auth.PermissionInventoryWrite), alertHandler),
+		metrics:   metrics,
+		readiness: httpx.ReadinessHandler(db),
 	}
 	limiter := httpx.NewRateLimiter(120, time.Minute)
 	handler := httpx.Chain(httpx.SecurityHeaders(httpx.MaxBodyBytes(2<<20, limiter.Middleware(metrics.Wrap(base)))))
