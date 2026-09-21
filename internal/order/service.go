@@ -89,82 +89,103 @@ func (s *Service) Get(org, id string) (Order, error) {
 }
 func (s *Service) List(org string) []Order { return s.store.List(org) }
 func (s *Service) Confirm(org, id string) (Order, error) {
+	return s.transition(org, id, StatusConfirmed)
+}
+func (s *Service) Pay(org, id string) (Order, error) {
+	return s.transition(org, id, StatusPaid)
+}
+func (s *Service) Ship(org, id string) (Order, error) {
+	return s.transition(org, id, StatusShipped)
+}
+func (s *Service) Complete(org, id string) (Order, error) {
+	return s.transition(org, id, StatusCompleted)
+}
+func (s *Service) Refund(org, id string) (Order, error) {
+	return s.transition(org, id, StatusRefunded)
+}
+func (s *Service) Cancel(org, id string) (Order, error) {
+	return s.transition(org, id, StatusCancelled)
+}
+
+func (s *Service) transition(org, id string, target Status) (Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if store, ok := s.store.(TransactionalStore); ok {
-		return store.TransitionAtomic(org, id, StatusConfirmed, s.now().UTC())
+		return store.TransitionAtomic(org, id, target, s.now().UTC())
 	}
 	v, e := s.Get(org, id)
 	if e != nil {
 		return Order{}, e
 	}
-	if v.Status == StatusConfirmed {
+	if v.Status == target {
 		return v, nil
 	}
-	if v.Status == StatusCancelled {
+	if !CanTransition(v.Status, target) {
 		return Order{}, ErrInvalidInput
 	}
 	previous := v
+	completed := 0
 	for i, l := range v.Lines {
-		if _, e = s.inventory.ConsumeReserved(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":deduct:" + fmt.Sprint(i)}); e != nil {
-			return Order{}, e
+		if action := transitionAction(target); action != "" {
+			if _, e = s.applyInventoryAction(org, l, action, id+":"+string(target)+":"+fmt.Sprint(i)); e != nil {
+				s.rollbackInventory(org, v.Lines[:completed], target, id+":action-rollback:")
+				return Order{}, e
+			}
+			completed++
 		}
 	}
-	v.Status = StatusConfirmed
+	v.Status = target
 	v.UpdatedAt = s.now().UTC()
 	if e = s.store.Put(v); e != nil {
-		for i, l := range v.Lines {
-			_, _ = s.inventory.Receive(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":put-rollback-receive:" + fmt.Sprint(i)})
-			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":put-rollback-reserve:" + fmt.Sprint(i)})
-		}
+		s.rollbackInventory(org, v.Lines, target, id+":put-rollback:")
 		return Order{}, e
 	}
-	if e = s.emit(v, "order.confirmed"); e != nil {
+	if e = s.emit(v, "order."+string(target)); e != nil {
 		_ = s.store.Put(previous)
-		for i, l := range v.Lines {
-			_, _ = s.inventory.Receive(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":event-rollback-receive:" + fmt.Sprint(i)})
-			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":event-rollback-reserve:" + fmt.Sprint(i)})
-		}
+		s.rollbackInventory(org, v.Lines, target, id+":event-rollback:")
 		return Order{}, e
 	}
 	return v, nil
 }
-func (s *Service) Cancel(org, id string) (Order, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if store, ok := s.store.(TransactionalStore); ok {
-		return store.TransitionAtomic(org, id, StatusCancelled, s.now().UTC())
+
+func transitionAction(target Status) string {
+	switch target {
+	case StatusConfirmed:
+		return "consume_reserved"
+	case StatusCancelled:
+		return "release"
+	case StatusRefunded:
+		return "receive"
+	default:
+		return ""
 	}
-	v, e := s.Get(org, id)
-	if e != nil {
-		return Order{}, e
+}
+
+func (s *Service) applyInventoryAction(org string, line Line, action, key string) (inventory.Stock, error) {
+	in := inventory.StockOperationInput{Quantity: line.Quantity, IdempotencyKey: key}
+	switch action {
+	case "consume_reserved":
+		return s.inventory.ConsumeReserved(org, line.WarehouseID, line.SKUID, in)
+	case "release":
+		return s.inventory.Release(org, line.WarehouseID, line.SKUID, in)
+	case "receive":
+		return s.inventory.Receive(org, line.WarehouseID, line.SKUID, in)
+	default:
+		return inventory.Stock{}, ErrInvalidInput
 	}
-	if v.Status == StatusCancelled {
-		return v, nil
-	}
-	if v.Status == StatusConfirmed {
-		return Order{}, ErrInvalidInput
-	}
-	previous := v
-	for i, l := range v.Lines {
-		if _, e = s.inventory.Release(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":cancel:" + fmt.Sprint(i)}); e != nil {
-			return Order{}, e
+}
+
+func (s *Service) rollbackInventory(org string, lines []Line, target Status, prefix string) {
+	for i, l := range lines {
+		key := prefix + fmt.Sprint(i)
+		switch target {
+		case StatusConfirmed:
+			_, _ = s.inventory.Receive(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: key + ":receive"})
+			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: key + ":reserve"})
+		case StatusCancelled:
+			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: key + ":reserve"})
+		case StatusRefunded:
+			_, _ = s.inventory.Deduct(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: key + ":deduct"})
 		}
 	}
-	v.Status = StatusCancelled
-	v.UpdatedAt = s.now().UTC()
-	if e = s.store.Put(v); e != nil {
-		for i, l := range v.Lines {
-			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":put-rollback-reserve:" + fmt.Sprint(i)})
-		}
-		return Order{}, e
-	}
-	if e = s.emit(v, "order.cancelled"); e != nil {
-		_ = s.store.Put(previous)
-		for i, l := range v.Lines {
-			_, _ = s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":event-rollback-reserve:" + fmt.Sprint(i)})
-		}
-		return Order{}, e
-	}
-	return v, nil
 }

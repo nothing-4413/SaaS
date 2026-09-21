@@ -131,36 +131,37 @@ func (s *PostgresStore) TransitionAtomic(org, id string, target Status, now time
 		_ = tx.Rollback()
 		return value, nil
 	}
-	if value.Status != StatusPending {
+	if !CanTransition(value.Status, target) {
 		return Order{}, ErrInvalidInput
 	}
-	for _, i := range orderLineOrder(value.Lines) {
-		line := value.Lines[i]
-		var onHand, reserved int64
-		if err = tx.QueryRowContext(ctx, `SELECT on_hand,reserved FROM inventory_stocks WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3 FOR UPDATE`, org, line.WarehouseID, line.SKUID).Scan(&onHand, &reserved); err != nil {
-			return Order{}, err
-		}
-		if target == StatusConfirmed {
-			if reserved < line.Quantity {
-				return Order{}, errors.New("insufficient reserved stock")
+	if action := transitionAction(target); action != "" {
+		for _, i := range orderLineOrder(value.Lines) {
+			line := value.Lines[i]
+			var onHand, reserved int64
+			if err = tx.QueryRowContext(ctx, `SELECT on_hand,reserved FROM inventory_stocks WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3 FOR UPDATE`, org, line.WarehouseID, line.SKUID).Scan(&onHand, &reserved); err != nil {
+				return Order{}, err
 			}
-			onHand -= line.Quantity
-			reserved -= line.Quantity
-		} else {
-			if reserved < line.Quantity {
-				return Order{}, errors.New("invalid reserved stock")
+			switch target {
+			case StatusConfirmed:
+				if reserved < line.Quantity {
+					return Order{}, errors.New("insufficient reserved stock")
+				}
+				onHand -= line.Quantity
+				reserved -= line.Quantity
+			case StatusCancelled:
+				if reserved < line.Quantity {
+					return Order{}, errors.New("invalid reserved stock")
+				}
+				reserved -= line.Quantity
+			case StatusRefunded:
+				onHand += line.Quantity
 			}
-			reserved -= line.Quantity
-		}
-		if _, err = tx.ExecContext(ctx, `UPDATE inventory_stocks SET on_hand=$4,reserved=$5,updated_at=$6 WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3`, org, line.WarehouseID, line.SKUID, onHand, reserved, now); err != nil {
-			return Order{}, err
-		}
-		action := "release"
-		if target == StatusConfirmed {
-			action = "consume_reserved"
-		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO inventory_operations (organization_id,warehouse_id,sku_id,action,quantity,idempotency_key,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`, org, line.WarehouseID, line.SKUID, action, line.Quantity, fmt.Sprintf("order:%s:%s:%d", target, id, i), now); err != nil {
-			return Order{}, err
+			if _, err = tx.ExecContext(ctx, `UPDATE inventory_stocks SET on_hand=$4,reserved=$5,updated_at=$6 WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3`, org, line.WarehouseID, line.SKUID, onHand, reserved, now); err != nil {
+				return Order{}, err
+			}
+			if _, err = tx.ExecContext(ctx, `INSERT INTO inventory_operations (organization_id,warehouse_id,sku_id,action,quantity,idempotency_key,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`, org, line.WarehouseID, line.SKUID, action, line.Quantity, fmt.Sprintf("order:%s:%s:%d", target, id, i), now); err != nil {
+				return Order{}, err
+			}
 		}
 	}
 	value.Status = target
@@ -168,10 +169,7 @@ func (s *PostgresStore) TransitionAtomic(org, id string, target Status, now time
 	if _, err = tx.ExecContext(ctx, `UPDATE orders SET status=$2,updated_at=$3 WHERE organization_id=$1 AND id=$4`, org, target, now, id); err != nil {
 		return Order{}, err
 	}
-	eventType := "order.cancelled"
-	if target == StatusConfirmed {
-		eventType = "order.confirmed"
-	}
+	eventType := "order." + string(target)
 	if err = insertOrderEvent(ctx, tx, value, eventType); err != nil {
 		return Order{}, err
 	}

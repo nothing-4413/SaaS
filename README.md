@@ -34,9 +34,13 @@ go run ./cmd/api
 - `POST /organizations/{id}/orders` 创建订单并批量预占库存
 - `GET /organizations/{id}/orders` 查询订单
 - `POST /organizations/{id}/orders/{orderId}/confirm` 确认订单并扣减已预占库存
+- `POST /organizations/{id}/orders/{orderId}/pay` 标记已支付
+- `POST /organizations/{id}/orders/{orderId}/ship` 标记已发货
+- `POST /organizations/{id}/orders/{orderId}/complete` 标记已完成
+- `POST /organizations/{id}/orders/{orderId}/refund` 退款并回补已扣减库存
 - `POST /organizations/{id}/orders/{orderId}/cancel` 取消订单并释放预占库存
 
-订单创建失败时会补偿释放此前已经成功预占的明细；相同订单幂等键重复提交会返回原订单。
+订单创建失败时会补偿释放此前已经成功预占的明细；相同订单幂等键重复提交会返回原订单。状态严格按 `pending -> confirmed -> paid -> shipped -> completed` 流转；`pending` 可取消，`paid/shipped/completed` 可退款，退款在同一事务中回补库存，重复退款请求不会重复入库。
 
 ## 经营报表 API
 

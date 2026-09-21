@@ -1,0 +1,2 @@
+-- PostgreSQL enum values cannot be removed safely while existing rows may use them.
+-- The forward migration is intentionally irreversible; retain the values on down.

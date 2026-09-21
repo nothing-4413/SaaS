@@ -10,7 +10,11 @@ type OrderSummary struct {
 	Total          int   `json:"total"`
 	Pending        int   `json:"pending"`
 	Confirmed      int   `json:"confirmed"`
+	Paid           int   `json:"paid"`
+	Shipped        int   `json:"shipped"`
+	Completed      int   `json:"completed"`
 	Cancelled      int   `json:"cancelled"`
+	Refunded       int   `json:"refunded"`
 	ConfirmedCents int64 `json:"confirmed_cents"`
 }
 

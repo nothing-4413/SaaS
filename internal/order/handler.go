@@ -37,6 +37,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var e error
 			if p[4] == "confirm" {
 				v, e = h.service.Confirm(org, p[3])
+			} else if p[4] == "pay" {
+				v, e = h.service.Pay(org, p[3])
+			} else if p[4] == "ship" {
+				v, e = h.service.Ship(org, p[3])
+			} else if p[4] == "complete" {
+				v, e = h.service.Complete(org, p[3])
+			} else if p[4] == "refund" {
+				v, e = h.service.Refund(org, p[3])
 			} else if p[4] == "cancel" {
 				v, e = h.service.Cancel(org, p[3])
 			} else {

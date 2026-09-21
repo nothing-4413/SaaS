@@ -37,8 +37,19 @@ func (s *Service) Summary(org string, lowStockThreshold int64) (Summary, error) 
 		case order.StatusConfirmed:
 			result.Orders.Confirmed++
 			result.Orders.ConfirmedCents += o.TotalCents
+		case order.StatusPaid:
+			result.Orders.Paid++
+			result.Orders.ConfirmedCents += o.TotalCents
+		case order.StatusShipped:
+			result.Orders.Shipped++
+			result.Orders.ConfirmedCents += o.TotalCents
+		case order.StatusCompleted:
+			result.Orders.Completed++
+			result.Orders.ConfirmedCents += o.TotalCents
 		case order.StatusCancelled:
 			result.Orders.Cancelled++
+		case order.StatusRefunded:
+			result.Orders.Refunded++
 		}
 	}
 	for _, stock := range s.stocks.List(org) {

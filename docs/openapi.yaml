@@ -78,6 +78,38 @@ paths:
         - { $ref: '#/components/parameters/OrganizationId' }
         - { $ref: '#/components/parameters/OrderId' }
       responses: { '200': { description: Cancelled } }
+  /organizations/{organizationId}/orders/{orderId}/pay:
+    post:
+      summary: Mark a confirmed order as paid
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/OrderId' }
+      responses: { '200': { description: Paid } }
+  /organizations/{organizationId}/orders/{orderId}/ship:
+    post:
+      summary: Mark a paid order as shipped
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/OrderId' }
+      responses: { '200': { description: Shipped } }
+  /organizations/{organizationId}/orders/{orderId}/complete:
+    post:
+      summary: Mark a shipped order as completed
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/OrderId' }
+      responses: { '200': { description: Completed } }
+  /organizations/{organizationId}/orders/{orderId}/refund:
+    post:
+      summary: Refund a paid, shipped, or completed order and restore stock
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/OrganizationId' }
+        - { $ref: '#/components/parameters/OrderId' }
+      responses: { '200': { description: Refunded } }
   /organizations/{organizationId}/reports/summary:
     get:
       summary: Get tenant business summary
