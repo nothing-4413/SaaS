@@ -20,6 +20,7 @@ import (
 	"github.com/nothing-4413/saas/internal/inventory"
 	"github.com/nothing-4413/saas/internal/order"
 	"github.com/nothing-4413/saas/internal/outbox"
+	"github.com/nothing-4413/saas/internal/platform/idgen"
 	"github.com/nothing-4413/saas/internal/platform/postgres"
 	"github.com/nothing-4413/saas/internal/product"
 	"github.com/nothing-4413/saas/internal/report"
@@ -121,8 +122,9 @@ func main() {
 	productHandler := product.NewHandler(product.NewService(product.NewPostgresStore(db)))
 	inventoryService := inventory.NewService(inventory.NewPostgresStore(db))
 	inventoryHandler := inventory.NewHandler(inventoryService)
+	events := outbox.NewService(outbox.NewPostgresStore(db))
 	orderService := order.NewService(order.NewPostgresStore(db), inventoryService)
-	orderService.SetEventService(outbox.NewService(outbox.NewPostgresStore(db)))
+	orderService.SetEventService(events)
 	orderHandler := order.NewHandler(orderService)
 	reportHandler := report.NewHandler(report.NewService(orderService, inventoryService))
 	exportHandler := export.NewHandler(orderService, inventoryService)
@@ -130,6 +132,10 @@ func main() {
 	metrics := httpx.NewMetrics()
 	authSecrets := append([]string{cfg.AuthTokenSecret}, cfg.AuthTokenPreviousSecrets...)
 	authHandler := auth.NewHandler(service, authSecrets...)
+	authHandler.SetPasswordResetNotifier(func(org, email, token string) error {
+		_, err := events.Enqueue(org, "password_reset", email, "auth.password_reset_requested", idgen.New(), map[string]string{"email": email, "token": token})
+		return err
+	})
 	auditService := audit.NewService(audit.NewPostgresStore(db))
 	webhookService := webhook.NewSubscriptionService(webhook.NewPostgresStore(db), webhook.Sender{})
 	alertHandler := alert.NewHandler(alert.NewRuleService(alert.NewPostgresStore(db)))

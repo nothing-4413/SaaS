@@ -91,6 +91,15 @@ type LoginInput struct {
 	Password string `json:"password"`
 }
 
+type PasswordResetRequestInput struct {
+	Email string `json:"email"`
+}
+
+type PasswordResetConfirmInput struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
 type CreateRoleInput struct {
 	Name        string       `json:"name"`
 	Permissions []Permission `json:"permissions"`

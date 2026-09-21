@@ -133,6 +133,8 @@ CSV 下载接口：
 
 登录连续失败 5 次后按账号锁定 15 分钟，成功登录会清除失败计数。密钥轮换期间可在 `AUTH_TOKEN_PREVIOUS_SECRETS` 中以逗号分隔配置旧密钥；新令牌始终使用 `AUTH_TOKEN_SECRET` 签发。
 
+密码重置接口为 `POST/PUT /organizations/{id}/sessions/password-reset`。请求接口对存在和不存在的邮箱都返回 `202`，防止账号枚举；有效请求会创建 15 分钟有效、只能消费一次的 SHA-256 令牌，并通过 Outbox 事件 `auth.password_reset_requested` 异步交给通知/Webhook 投递。确认重置时会校验组织边界、更新 bcrypt 密码并撤销该用户的所有既有会话。
+
 OpenAPI 文档已包含 Bearer Token 安全方案，以及报表、库存和 CSV 导出接口定义。
 
 架构细节见 [docs/architecture.md](docs/architecture.md)，安全问题报告流程见 [SECURITY.md](SECURITY.md)。

@@ -29,6 +29,8 @@ type Store interface {
 	RecordLoginFailure(string, string, time.Time, int, time.Duration) (bool, error)
 	ClearLoginFailures(string, string) error
 	IsLoginLocked(string, string, time.Time) (bool, error)
+	CreatePasswordResetToken(string, string, string, time.Time, time.Time) error
+	ResetPassword(string, string, string, time.Time) error
 }
 
 type BootstrapStore interface {
@@ -36,12 +38,13 @@ type BootstrapStore interface {
 }
 
 type MemoryStore struct {
-	mu            sync.RWMutex
-	organizations map[string]Organization
-	roles         map[string]Role
-	users         map[string]User
-	sessions      map[string]Session
-	loginFailures map[string]loginFailure
+	mu             sync.RWMutex
+	organizations  map[string]Organization
+	roles          map[string]Role
+	users          map[string]User
+	sessions       map[string]Session
+	loginFailures  map[string]loginFailure
+	passwordResets map[string]passwordReset
 }
 
 type loginFailure struct {
@@ -49,8 +52,15 @@ type loginFailure struct {
 	Locked time.Time
 }
 
+type passwordReset struct {
+	OrganizationID string
+	UserID         string
+	ExpiresAt      time.Time
+	UsedAt         *time.Time
+}
+
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{organizations: make(map[string]Organization), roles: make(map[string]Role), users: make(map[string]User), sessions: make(map[string]Session), loginFailures: make(map[string]loginFailure)}
+	return &MemoryStore{organizations: make(map[string]Organization), roles: make(map[string]Role), users: make(map[string]User), sessions: make(map[string]Session), loginFailures: make(map[string]loginFailure), passwordResets: make(map[string]passwordReset)}
 }
 
 func (s *MemoryStore) CreateOrganization(v Organization) error {
@@ -252,4 +262,40 @@ func (s *MemoryStore) IsLoginLocked(org, email string, now time.Time) (bool, err
 	defer s.mu.RUnlock()
 	v := s.loginFailures[loginKey(org, email)]
 	return v.Locked.After(now), nil
+}
+
+func (s *MemoryStore) CreatePasswordResetToken(org, userID, tokenHash string, expiresAt, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.users[userID]
+	if !ok || u.OrganizationID != org || !u.Active {
+		return ErrNotFound
+	}
+	s.passwordResets[tokenHash] = passwordReset{OrganizationID: org, UserID: userID, ExpiresAt: expiresAt}
+	return nil
+}
+
+func (s *MemoryStore) ResetPassword(org, tokenHash, passwordHash string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.passwordResets[tokenHash]
+	if !ok || v.OrganizationID != org || v.UsedAt != nil || !v.ExpiresAt.After(now) {
+		return ErrInvalidResetToken
+	}
+	u, ok := s.users[v.UserID]
+	if !ok || u.OrganizationID != v.OrganizationID {
+		return ErrInvalidResetToken
+	}
+	u.PasswordHash = passwordHash
+	s.users[u.ID] = u
+	for id, session := range s.sessions {
+		if session.OrganizationID == v.OrganizationID && session.UserID == u.ID && session.RevokedAt == nil {
+			revokedAt := now
+			session.RevokedAt = &revokedAt
+			s.sessions[id] = session
+		}
+	}
+	v.UsedAt = &now
+	s.passwordResets[tokenHash] = v
+	return nil
 }

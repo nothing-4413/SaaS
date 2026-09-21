@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"time"
@@ -11,6 +14,7 @@ import (
 
 var ErrInvalidInput = errors.New("invalid input")
 var ErrLoginLocked = errors.New("login temporarily locked")
+var ErrInvalidResetToken = errors.New("invalid or expired password reset token")
 
 type Service struct {
 	store Store
@@ -158,6 +162,40 @@ func (s *Service) Authenticate(org, email, password string) (User, error) {
 		return User{}, err
 	}
 	return u, nil
+}
+
+func (s *Service) RequestPasswordReset(org, email string) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if strings.TrimSpace(org) == "" || email == "" {
+		return "", ErrInvalidInput
+	}
+	u, err := s.store.FindUserByEmail(org, email)
+	if err != nil || !u.Active {
+		return "", ErrNotFound
+	}
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw)
+	hash := sha256.Sum256([]byte(token))
+	now := s.now().UTC()
+	if err := s.store.CreatePasswordResetToken(org, u.ID, base64.RawURLEncoding.EncodeToString(hash[:]), now.Add(15*time.Minute), now); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+func (s *Service) ResetPassword(org, token, password string) error {
+	if strings.TrimSpace(org) == "" || strings.TrimSpace(token) == "" || len(password) < 8 {
+		return ErrInvalidInput
+	}
+	hash := sha256.Sum256([]byte(token))
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.store.ResetPassword(org, base64.RawURLEncoding.EncodeToString(hash[:]), string(hashedPassword), s.now().UTC())
 }
 
 func (s *Service) CreateSession(user User, lifetime time.Duration) (Session, error) {

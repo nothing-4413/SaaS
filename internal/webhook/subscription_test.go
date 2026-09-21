@@ -74,3 +74,12 @@ func TestSubscriptionDeliveryIsolatesFailuresAndSkipsSuccessesOnRetry(t *testing
 		t.Fatalf("requests=%v", requests)
 	}
 }
+
+func TestPasswordResetEventsRequireExplicitSubscription(t *testing.T) {
+	if accepts([]string{"*"}, "auth.password_reset_requested") {
+		t.Fatal("wildcard subscription must not receive password reset tokens")
+	}
+	if !accepts([]string{"auth.password_reset_requested"}, "auth.password_reset_requested") {
+		t.Fatal("explicit password reset subscription should receive event")
+	}
+}

@@ -9,9 +9,10 @@ import (
 )
 
 type Handler struct {
-	service      *Service
-	tokenSecret  string
-	tokenSecrets []string
+	service       *Service
+	tokenSecret   string
+	tokenSecrets  []string
+	resetNotifier func(org, email, token string) error
 }
 
 func NewHandler(service *Service, tokenSecret ...string) *Handler {
@@ -23,6 +24,11 @@ func NewHandler(service *Service, tokenSecret ...string) *Handler {
 	return &Handler{service: service, tokenSecret: secret, tokenSecrets: secrets}
 }
 
+// SetPasswordResetNotifier connects reset token delivery to an asynchronous provider.
+func (h *Handler) SetPasswordResetNotifier(notifier func(org, email, token string) error) {
+	h.resetNotifier = notifier
+}
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	if len(parts) == 1 && parts[0] == "organizations" && r.Method == http.MethodPost {
@@ -31,6 +37,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) >= 2 && parts[0] == "organizations" {
 		orgID := parts[1]
+		if len(parts) == 4 && parts[2] == "sessions" && parts[3] == "password-reset" {
+			if r.Method == http.MethodPost {
+				h.requestPasswordReset(w, r, orgID)
+				return
+			}
+			if r.Method == http.MethodPut {
+				h.confirmPasswordReset(w, r, orgID)
+				return
+			}
+		}
 		if len(parts) == 3 && parts[2] == "sessions" && r.Method == http.MethodPost {
 			h.login(w, r, orgID)
 			return
@@ -73,6 +89,35 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.NotFound(w, r)
+}
+
+func (h *Handler) requestPasswordReset(w http.ResponseWriter, r *http.Request, orgID string) {
+	var in PasswordResetRequestInput
+	if !decode(w, r, &in) {
+		return
+	}
+	// Always return the same response to prevent account enumeration. Delivery
+	// of the generated token is handled by the configured notification worker.
+	if token, err := h.service.RequestPasswordReset(orgID, in.Email); err == nil && h.resetNotifier != nil {
+		_ = h.resetNotifier(orgID, strings.ToLower(strings.TrimSpace(in.Email)), token)
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"message": "if the account exists, reset instructions will be sent"})
+}
+
+func (h *Handler) confirmPasswordReset(w http.ResponseWriter, r *http.Request, orgID string) {
+	var in PasswordResetConfirmInput
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := h.service.ResetPassword(orgID, in.Token, in.Password); err != nil {
+		if errors.Is(err, ErrInvalidResetToken) {
+			writeError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+		writeError(w, statusFor(err), err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 func (h *Handler) login(w http.ResponseWriter, r *http.Request, orgID string) {
 	if h.tokenSecret == "" {

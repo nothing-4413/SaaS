@@ -263,3 +263,49 @@ func (s *PostgresStore) IsLoginLocked(org, email string, now time.Time) (bool, e
 	}
 	return locked, err
 }
+
+func (s *PostgresStore) CreatePasswordResetToken(org, userID, tokenHash string, expiresAt, now time.Time) error {
+	result, err := s.db.ExecContext(context.Background(), `
+		INSERT INTO password_reset_tokens (token_hash,organization_id,user_id,expires_at,created_at)
+		SELECT $1,$2,$3,$4,$5
+		WHERE EXISTS (SELECT 1 FROM users WHERE organization_id=$2 AND id=$3 AND active=true)`, tokenHash, org, userID, expiresAt, now)
+	if err != nil {
+		return pgError(err)
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *PostgresStore) ResetPassword(org, tokenHash, passwordHash string, now time.Time) error {
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var tokenOrg, userID string
+	err = tx.QueryRowContext(context.Background(), `
+		SELECT organization_id,user_id FROM password_reset_tokens
+		WHERE organization_id=$1 AND token_hash=$2 AND used_at IS NULL AND expires_at > $3 FOR UPDATE`, org, tokenHash, now).Scan(&tokenOrg, &userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrInvalidResetToken
+	}
+	if err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(context.Background(), `UPDATE users SET password_hash=$3 WHERE organization_id=$1 AND id=$2 AND active=true`, tokenOrg, userID, passwordHash)
+	if err != nil {
+		return err
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		return ErrInvalidResetToken
+	}
+	if _, err = tx.ExecContext(context.Background(), `UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,$3) WHERE organization_id=$1 AND user_id=$2 AND revoked_at IS NULL`, tokenOrg, userID, now); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(context.Background(), `UPDATE password_reset_tokens SET used_at=$2 WHERE token_hash=$1`, tokenHash, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

@@ -38,6 +38,35 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
       responses: { '204': { description: Revoked }, '401': { description: Invalid session } }
+  /organizations/{organizationId}/sessions/password-reset:
+    post:
+      summary: Request a password reset instruction
+      description: Always returns 202 to prevent account enumeration. The reset token is delivered asynchronously through the notification outbox.
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses: { '202': { description: Reset instruction accepted } }
+    put:
+      summary: Set a new password using a reset token
+      parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, format: password, minLength: 8 }
+      responses: { '204': { description: Password reset }, '401': { description: Invalid or expired token } }
   /organizations:
     post:
       summary: Create organization

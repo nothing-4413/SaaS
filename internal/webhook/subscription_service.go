@@ -82,7 +82,9 @@ func (s *SubscriptionService) Deliver(event outbox.Event) error {
 
 func accepts(events []string, eventType string) bool {
 	for _, candidate := range events {
-		if candidate == "*" || candidate == eventType {
+		// Password reset payloads contain a one-time secret. A wildcard
+		// subscription must never receive them accidentally; opt in explicitly.
+		if candidate == eventType || (candidate == "*" && eventType != "auth.password_reset_requested") {
 			return true
 		}
 	}
