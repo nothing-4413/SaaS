@@ -229,3 +229,37 @@ func (s *PostgresStore) RevokeSession(id string, at time.Time) error {
 	}
 	return nil
 }
+
+func (s *PostgresStore) RecordLoginFailure(org, email string, now time.Time, maxAttempts int, lockout time.Duration) (bool, error) {
+	var lockedUntil sql.NullTime
+	err := s.db.QueryRowContext(context.Background(), `
+		INSERT INTO auth_login_attempts (organization_id,email,failed_attempts,locked_until,updated_at)
+		VALUES ($1,$2,1,NULL,$3)
+		ON CONFLICT (organization_id,email) DO UPDATE SET
+			failed_attempts = CASE WHEN auth_login_attempts.locked_until IS NOT NULL AND auth_login_attempts.locked_until <= $3 THEN 1 ELSE auth_login_attempts.failed_attempts + 1 END,
+			locked_until = CASE
+				WHEN auth_login_attempts.locked_until IS NOT NULL AND auth_login_attempts.locked_until <= $3 THEN NULL
+				WHEN auth_login_attempts.failed_attempts + 1 >= $4 THEN $3 + $5::interval
+				ELSE auth_login_attempts.locked_until
+			END,
+			updated_at = $3
+		RETURNING locked_until`, org, email, now, maxAttempts, lockout.String()).Scan(&lockedUntil)
+	if err != nil {
+		return false, err
+	}
+	return lockedUntil.Valid && lockedUntil.Time.After(now), nil
+}
+
+func (s *PostgresStore) ClearLoginFailures(org, email string) error {
+	_, err := s.db.ExecContext(context.Background(), `DELETE FROM auth_login_attempts WHERE organization_id=$1 AND email=$2`, org, email)
+	return err
+}
+
+func (s *PostgresStore) IsLoginLocked(org, email string, now time.Time) (bool, error) {
+	var locked bool
+	err := s.db.QueryRowContext(context.Background(), `SELECT locked_until IS NOT NULL AND locked_until > $3 FROM auth_login_attempts WHERE organization_id=$1 AND email=$2`, org, email, now).Scan(&locked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return locked, err
+}

@@ -10,6 +10,7 @@ import (
 )
 
 var ErrInvalidInput = errors.New("invalid input")
+var ErrLoginLocked = errors.New("login temporarily locked")
 
 type Service struct {
 	store Store
@@ -134,12 +135,27 @@ func (s *Service) Authenticate(org, email, password string) (User, error) {
 	if org == "" || email == "" || password == "" {
 		return User{}, ErrInvalidInput
 	}
+	locked, err := s.store.IsLoginLocked(org, email, s.now().UTC())
+	if err != nil {
+		return User{}, err
+	}
+	if locked {
+		return User{}, ErrLoginLocked
+	}
 	u, err := s.store.FindUserByEmail(org, email)
 	if err != nil {
+		_, _ = s.store.RecordLoginFailure(org, email, s.now().UTC(), 5, 15*time.Minute)
 		return User{}, ErrNotFound
 	}
 	if !u.Active || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
+		locked, _ := s.store.RecordLoginFailure(org, email, s.now().UTC(), 5, 15*time.Minute)
+		if locked {
+			return User{}, ErrLoginLocked
+		}
 		return User{}, ErrNotFound
+	}
+	if err := s.store.ClearLoginFailures(org, email); err != nil {
+		return User{}, err
 	}
 	return u, nil
 }

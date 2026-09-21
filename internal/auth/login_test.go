@@ -77,3 +77,38 @@ func TestInactiveUserCannotLogin(t *testing.T) {
 		t.Fatalf("expected inactive user rejection, got %v", err)
 	}
 }
+
+func TestLoginFailureLockoutAndSuccessfulReset(t *testing.T) {
+	s := NewService(NewMemoryStore())
+	o, _ := s.CreateOrganization(CreateOrganizationInput{Name: "A"})
+	if _, err := s.CreateUser(o.ID, CreateUserInput{Email: "lock@example.com", Name: "U", Password: "password123"}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 4; i++ {
+		if _, err := s.Authenticate(o.ID, "lock@example.com", "wrong-password"); err != ErrNotFound {
+			t.Fatalf("attempt %d: %v", i+1, err)
+		}
+	}
+	if _, err := s.Authenticate(o.ID, "lock@example.com", "wrong-password"); err != ErrLoginLocked {
+		t.Fatalf("fifth failure should lock account, got %v", err)
+	}
+	if _, err := s.Authenticate(o.ID, "lock@example.com", "password123"); err != ErrLoginLocked {
+		t.Fatalf("locked account accepted password: %v", err)
+	}
+	if _, err := s.CreateUser(o.ID, CreateUserInput{Email: "reset@example.com", Name: "R", Password: "password123"}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 4; i++ {
+		if _, err := s.Authenticate(o.ID, "reset@example.com", "wrong-password"); err != ErrNotFound {
+			t.Fatalf("reset attempt %d: %v", i+1, err)
+		}
+	}
+	if _, err := s.Authenticate(o.ID, "reset@example.com", "password123"); err != nil {
+		t.Fatalf("valid login should clear failures: %v", err)
+	}
+	for i := 0; i < 4; i++ {
+		if _, err := s.Authenticate(o.ID, "reset@example.com", "wrong-password"); err != ErrNotFound {
+			t.Fatalf("post-reset attempt %d: %v", i+1, err)
+		}
+	}
+}

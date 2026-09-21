@@ -9,8 +9,9 @@ import (
 )
 
 type Handler struct {
-	service     *Service
-	tokenSecret string
+	service      *Service
+	tokenSecret  string
+	tokenSecrets []string
 }
 
 func NewHandler(service *Service, tokenSecret ...string) *Handler {
@@ -18,7 +19,8 @@ func NewHandler(service *Service, tokenSecret ...string) *Handler {
 	if len(tokenSecret) > 0 {
 		secret = tokenSecret[0]
 	}
-	return &Handler{service: service, tokenSecret: secret}
+	secrets := append([]string(nil), tokenSecret...)
+	return &Handler{service: service, tokenSecret: secret, tokenSecrets: secrets}
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -83,6 +85,10 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request, orgID string) {
 	}
 	u, err := h.service.Authenticate(orgID, in.Email, in.Password)
 	if err != nil {
+		if errors.Is(err, ErrLoginLocked) {
+			writeError(w, http.StatusTooManyRequests, "login temporarily locked")
+			return
+		}
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -110,7 +116,7 @@ func (h *Handler) revokeSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "missing bearer token")
 		return
 	}
-	claims, err := ParseToken(h.tokenSecret, parts[1])
+	claims, err := ParseTokenWithSecrets(h.tokenSecrets, parts[1])
 	if err != nil || claims.SessionID == "" {
 		writeError(w, http.StatusUnauthorized, "missing session")
 		return
@@ -130,7 +136,7 @@ func (h *Handler) refreshSession(w http.ResponseWriter, r *http.Request, orgID s
 	if !decode(w, r, &in) {
 		return
 	}
-	claims, err := ParseToken(h.tokenSecret, in.RefreshToken)
+	claims, err := ParseTokenWithSecrets(h.tokenSecrets, in.RefreshToken)
 	if err != nil || claims.TokenType != "refresh" || claims.OrganizationID != orgID {
 		writeError(w, http.StatusUnauthorized, "invalid refresh token")
 		return

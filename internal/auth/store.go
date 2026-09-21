@@ -26,6 +26,9 @@ type Store interface {
 	CreateSession(Session) error
 	GetSession(string) (Session, error)
 	RevokeSession(string, time.Time) error
+	RecordLoginFailure(string, string, time.Time, int, time.Duration) (bool, error)
+	ClearLoginFailures(string, string) error
+	IsLoginLocked(string, string, time.Time) (bool, error)
 }
 
 type BootstrapStore interface {
@@ -38,10 +41,16 @@ type MemoryStore struct {
 	roles         map[string]Role
 	users         map[string]User
 	sessions      map[string]Session
+	loginFailures map[string]loginFailure
+}
+
+type loginFailure struct {
+	Count  int
+	Locked time.Time
 }
 
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{organizations: make(map[string]Organization), roles: make(map[string]Role), users: make(map[string]User), sessions: make(map[string]Session)}
+	return &MemoryStore{organizations: make(map[string]Organization), roles: make(map[string]Role), users: make(map[string]User), sessions: make(map[string]Session), loginFailures: make(map[string]loginFailure)}
 }
 
 func (s *MemoryStore) CreateOrganization(v Organization) error {
@@ -208,4 +217,39 @@ func (s *MemoryStore) RevokeSession(id string, at time.Time) error {
 	v.RevokedAt = &at
 	s.sessions[id] = v
 	return nil
+}
+
+func loginKey(org, email string) string { return org + "\x00" + email }
+
+func (s *MemoryStore) RecordLoginFailure(org, email string, now time.Time, maxAttempts int, lockout time.Duration) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := loginKey(org, email)
+	v := s.loginFailures[k]
+	if v.Locked.After(now) {
+		return true, nil
+	}
+	if !v.Locked.IsZero() {
+		v = loginFailure{}
+	}
+	v.Count++
+	if v.Count >= maxAttempts {
+		v.Locked = now.Add(lockout)
+	}
+	s.loginFailures[k] = v
+	return !v.Locked.IsZero() && v.Locked.After(now), nil
+}
+
+func (s *MemoryStore) ClearLoginFailures(org, email string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.loginFailures, loginKey(org, email))
+	return nil
+}
+
+func (s *MemoryStore) IsLoginLocked(org, email string, now time.Time) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v := s.loginFailures[loginKey(org, email)]
+	return v.Locked.After(now), nil
 }

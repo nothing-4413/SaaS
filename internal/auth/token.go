@@ -34,6 +34,19 @@ func IssueToken(secret string, claims Claims) (string, error) {
 	return enc + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 func ParseToken(secret, token string) (Claims, error) {
+	return ParseTokenWithSecrets([]string{secret}, token)
+}
+
+func ParseTokenWithSecrets(secrets []string, token string) (Claims, error) {
+	for _, secret := range secrets {
+		if claims, err := parseToken(secret, token); err == nil {
+			return claims, nil
+		}
+	}
+	return Claims{}, ErrInvalidToken
+}
+
+func parseToken(secret, token string) (Claims, error) {
 	if strings.TrimSpace(secret) == "" {
 		return Claims{}, ErrInvalidToken
 	}

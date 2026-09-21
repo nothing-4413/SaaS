@@ -128,12 +128,13 @@ func main() {
 	exportHandler := export.NewHandler(orderService, inventoryService)
 	importerHandler := importer.NewHandler(inventoryService)
 	metrics := httpx.NewMetrics()
-	authHandler := auth.NewHandler(service, cfg.AuthTokenSecret)
+	authSecrets := append([]string{cfg.AuthTokenSecret}, cfg.AuthTokenPreviousSecrets...)
+	authHandler := auth.NewHandler(service, authSecrets...)
 	auditService := audit.NewService(audit.NewPostgresStore(db))
 	webhookService := webhook.NewSubscriptionService(webhook.NewPostgresStore(db), webhook.Sender{})
 	alertHandler := alert.NewHandler(alert.NewRuleService(alert.NewPostgresStore(db)))
 	protect := func(permission auth.Permission, handler http.Handler) http.Handler {
-		return auth.RequireTokenPermission(service, cfg.AuthTokenSecret, permission, audit.Middleware(auditService, handler))
+		return auth.RequireTokenPermissions(service, authSecrets, permission, audit.Middleware(auditService, handler))
 	}
 	base := apiHandler{
 		authPublic: authHandler,

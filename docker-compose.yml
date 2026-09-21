@@ -7,6 +7,7 @@ services:
       DATABASE_URL: postgres://saas:saas@postgres:5432/saas?sslmode=disable
       REDIS_URL: redis://redis:6379/0
       AUTH_TOKEN_SECRET: development-only-change-me
+      AUTH_TOKEN_PREVIOUS_SECRETS: ""
     ports: ["8080:8080"]
     depends_on:
       migrate:

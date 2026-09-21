@@ -34,13 +34,17 @@ func RequirePermission(service *Service, permission Permission, next http.Handle
 }
 
 func RequireTokenPermission(service *Service, secret string, permission Permission, next http.Handler) http.Handler {
+	return RequireTokenPermissions(service, []string{secret}, permission, next)
+}
+
+func RequireTokenPermissions(service *Service, secrets []string, permission Permission, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Fields(r.Header.Get("Authorization"))
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
-		claims, err := ParseToken(secret, parts[1])
+		claims, err := ParseTokenWithSecrets(secrets, parts[1])
 		if err != nil {
 			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return
