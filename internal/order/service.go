@@ -9,6 +9,7 @@ import (
 	"github.com/nothing-4413/saas/internal/inventory"
 	"github.com/nothing-4413/saas/internal/outbox"
 	"github.com/nothing-4413/saas/internal/platform/idgen"
+	"github.com/nothing-4413/saas/internal/product"
 )
 
 type Service struct {
@@ -17,12 +18,21 @@ type Service struct {
 	now       func() time.Time
 	mu        sync.Mutex
 	events    *outbox.Service
+	catalog   interface {
+		GetSKU(string) (product.SKU, error)
+	}
 }
 
 func NewService(store Store, inv *inventory.Service) *Service {
 	return &Service{store: store, inventory: inv, now: time.Now}
 }
 func (s *Service) SetEventService(events *outbox.Service) { s.events = events }
+
+// SetCatalog makes order pricing authoritative: callers provide a SKU and
+// quantity, while the current catalog price is copied into the order.
+func (s *Service) SetCatalog(c interface {
+	GetSKU(string) (product.SKU, error)
+}) { s.catalog = c }
 func (s *Service) emit(v Order, eventType string) error {
 	if s.events == nil {
 		return nil
@@ -38,15 +48,23 @@ func (s *Service) Create(org string, in CreateInput) (Order, error) {
 		return Order{}, ErrInvalidInput
 	}
 	total := int64(0)
-	for _, l := range in.Lines {
+	lines := append([]Line(nil), in.Lines...)
+	for i, l := range lines {
 		if strings.TrimSpace(l.SKUID) == "" || strings.TrimSpace(l.WarehouseID) == "" || l.Quantity <= 0 || l.UnitPriceCents < 0 {
 			return Order{}, ErrInvalidInput
 		}
-		total += l.Quantity * l.UnitPriceCents
+		if s.catalog != nil {
+			sku, err := s.catalog.GetSKU(l.SKUID)
+			if err != nil || sku.OrganizationID != org {
+				return Order{}, ErrInvalidInput
+			}
+			lines[i].UnitPriceCents = sku.PriceCents
+		}
+		total += l.Quantity * lines[i].UnitPriceCents
 	}
 	id := s.id()
 	now := s.now().UTC()
-	v := Order{ID: id, OrganizationID: org, IdempotencyKey: in.IdempotencyKey, Status: StatusPending, Lines: append([]Line(nil), in.Lines...), TotalCents: total, CreatedAt: now, UpdatedAt: now}
+	v := Order{ID: id, OrganizationID: org, IdempotencyKey: in.IdempotencyKey, Status: StatusPending, Lines: lines, TotalCents: total, CreatedAt: now, UpdatedAt: now}
 	if store, ok := s.store.(TransactionalStore); ok {
 		return store.CreateAtomic(v)
 	}
@@ -54,11 +72,11 @@ func (s *Service) Create(org string, in CreateInput) (Order, error) {
 		return old, nil
 	}
 	reserved := 0
-	for i, l := range in.Lines {
+	for i, l := range lines {
 		_, e := s.inventory.Reserve(org, l.WarehouseID, l.SKUID, inventory.StockOperationInput{Quantity: l.Quantity, IdempotencyKey: id + ":reserve:" + fmt.Sprint(i)})
 		if e != nil {
 			for j := 0; j < reserved; j++ {
-				p := in.Lines[j]
+				p := lines[j]
 				_, _ = s.inventory.Release(org, p.WarehouseID, p.SKUID, inventory.StockOperationInput{Quantity: p.Quantity, IdempotencyKey: id + ":rollback:" + fmt.Sprint(j)})
 			}
 			return Order{}, e

@@ -47,6 +47,7 @@ go run ./cmd/api
 - `POST /organizations/{id}/orders/{orderId}/cancel` 取消订单并释放预占库存
 
 订单创建失败时会补偿释放此前已经成功预占的明细；相同订单幂等键重复提交会返回原订单。状态严格按 `pending -> confirmed -> paid -> shipped -> completed` 流转；`pending` 可取消，`paid/shipped/completed` 可退款，退款在同一事务中回补库存，重复退款请求不会重复入库。
+订单价格以组织内 SKU 当前售价为准，服务端不会信任客户端提交的单价，避免通过接口篡改销售金额。
 
 ## 经营报表 API
 
