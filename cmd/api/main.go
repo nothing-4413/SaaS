@@ -60,7 +60,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			h.userRead.ServeHTTP(w, r)
 		} else {
-			h.userWrite.ServeHTTP(w, r)
+			h.roleManage.ServeHTTP(w, r)
 		}
 		return
 	}
