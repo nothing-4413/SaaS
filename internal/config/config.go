@@ -12,7 +12,6 @@ const defaultAuthTokenSecret = "development-only-change-me"
 type Config struct {
 	HTTPAddr                 string
 	PostgresURL              string
-	RedisURL                 string
 	AuthTokenSecret          string
 	AuthTokenPreviousSecrets []string
 	Environment              string
@@ -22,7 +21,6 @@ func Load() Config {
 	return Config{
 		HTTPAddr:                 env("HTTP_ADDR", ":8080"),
 		PostgresURL:              env("DATABASE_URL", "postgres://saas:saas@localhost:5432/saas?sslmode=disable"),
-		RedisURL:                 env("REDIS_URL", "redis://localhost:6379/0"),
 		AuthTokenSecret:          env("AUTH_TOKEN_SECRET", defaultAuthTokenSecret),
 		AuthTokenPreviousSecrets: splitSecrets(os.Getenv("AUTH_TOKEN_PREVIOUS_SECRETS")),
 		Environment:              strings.ToLower(env("APP_ENV", "development")),

@@ -4,7 +4,7 @@ import "testing"
 
 func TestLoadDefaults(t *testing.T) {
 	c := Load()
-	if c.HTTPAddr == "" || c.PostgresURL == "" || c.RedisURL == "" {
+	if c.HTTPAddr == "" || c.PostgresURL == "" {
 		t.Fatalf("defaults missing: %+v", c)
 	}
 }
