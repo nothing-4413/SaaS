@@ -93,14 +93,14 @@ docker compose up --build
 API 容器监听 `8080`，PostgreSQL 通过健康检查且数据库迁移成功后才会启动 API。
 API 容器自身也通过 `/healthz` 健康检查，便于 Compose 或编排平台摘除未就绪实例。
 
-服务存活检查：`GET /healthz`；包含 PostgreSQL 连通性的就绪检查：`GET /readyz`。通过 `.env.example` 中的环境变量可配置监听地址、PostgreSQL 和 Redis 连接串；服务收到 SIGINT/SIGTERM 时会等待正在处理的请求完成后退出。
+服务存活检查：`GET /healthz`；包含 PostgreSQL 连通性的就绪检查：`GET /readyz`。通过 `.env.example` 中的环境变量可配置监听地址和 PostgreSQL 连接串；服务收到 SIGINT/SIGTERM 时会等待正在处理的请求完成后退出。
 
 ## 常用命令
 
 ```bash
 make test       # 单元测试
 make build      # 构建全部 Go 包
-make docker-up  # 启动 PostgreSQL / Redis
+make docker-up  # 启动 PostgreSQL
 ```
 
 GitHub Actions 会在每次提交和 Pull Request 上使用官方 Go 工具链执行格式检查、测试、`go vet`、竞态测试和构建。
