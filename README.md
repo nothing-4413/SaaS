@@ -20,6 +20,12 @@ go run ./cmd/api
 
 ## 库存 API
 
+商品、SKU 和仓库支持创建、查询及业务维护：
+
+- `PUT /organizations/{id}/products/{productId}` 更新商品名称和描述
+- `PUT /organizations/{id}/products/{productId}/skus/{skuId}` 更新 SKU 编码、名称和售价
+- `PUT /organizations/{id}/warehouses/{warehouseId}` 更新仓库名称和地址
+
 - `GET /organizations/{id}/stocks` 查询组织库存
 - `GET /organizations/{id}/warehouses/{warehouseId}/skus/{skuId}/stock` 查询单个库存
 - `POST .../stock/receive` 入库，参数：`{"quantity":10,"idempotency_key":"receipt-1"}`

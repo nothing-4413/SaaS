@@ -26,12 +26,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				h.listProducts(w, r, org)
 				return
 			}
+			if len(p) == 4 && r.Method == http.MethodPut {
+				h.updateProduct(w, r, org, p[3])
+				return
+			}
 			if len(p) == 5 && p[4] == "skus" && r.Method == http.MethodPost {
 				h.createSKU(w, r, org, p[3])
 				return
 			}
 			if len(p) == 5 && p[4] == "skus" && r.Method == http.MethodGet {
 				h.listSKUs(w, r, p[3])
+				return
+			}
+			if len(p) == 6 && p[4] == "skus" && r.Method == http.MethodPut {
+				h.updateSKU(w, r, org, p[5])
 				return
 			}
 		}
@@ -42,6 +50,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			if len(p) == 3 && r.Method == http.MethodGet {
 				h.listWarehouses(w, r, org)
+				return
+			}
+			if len(p) == 4 && r.Method == http.MethodPut {
+				h.updateWarehouse(w, r, org, p[3])
 				return
 			}
 		}
@@ -211,6 +223,18 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request, o string
 	}
 	writeJSON(w, 201, v)
 }
+func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request, o, id string) {
+	var in CreateProductInput
+	if !decode(w, r, &in) {
+		return
+	}
+	v, e := h.service.UpdateProduct(o, id, in)
+	if e != nil {
+		writeError(w, stat(e), e.Error())
+		return
+	}
+	writeJSON(w, 200, v)
+}
 func (h *Handler) createSKU(w http.ResponseWriter, r *http.Request, o, p string) {
 	var in CreateSKUInput
 	if !decode(w, r, &in) {
@@ -223,6 +247,18 @@ func (h *Handler) createSKU(w http.ResponseWriter, r *http.Request, o, p string)
 	}
 	writeJSON(w, 201, v)
 }
+func (h *Handler) updateSKU(w http.ResponseWriter, r *http.Request, o, id string) {
+	var in CreateSKUInput
+	if !decode(w, r, &in) {
+		return
+	}
+	v, e := h.service.UpdateSKU(o, id, in)
+	if e != nil {
+		writeError(w, stat(e), e.Error())
+		return
+	}
+	writeJSON(w, 200, v)
+}
 func (h *Handler) createWarehouse(w http.ResponseWriter, r *http.Request, o string) {
 	var in CreateWarehouseInput
 	if !decode(w, r, &in) {
@@ -234,4 +270,16 @@ func (h *Handler) createWarehouse(w http.ResponseWriter, r *http.Request, o stri
 		return
 	}
 	writeJSON(w, 201, v)
+}
+func (h *Handler) updateWarehouse(w http.ResponseWriter, r *http.Request, o, id string) {
+	var in CreateWarehouseInput
+	if !decode(w, r, &in) {
+		return
+	}
+	v, e := h.service.UpdateWarehouse(o, id, in)
+	if e != nil {
+		writeError(w, stat(e), e.Error())
+		return
+	}
+	writeJSON(w, 200, v)
 }

@@ -141,6 +141,34 @@ paths:
         content:
           application/json: { schema: { $ref: '#/components/schemas/CreateSKU' } }
       responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/SKU' } } } }, '409': { description: Conflict } }
+  /organizations/{organizationId}/products/{productId}:
+    parameters:
+      - { $ref: '#/components/parameters/OrganizationId' }
+      - { $ref: '#/components/parameters/ProductId' }
+    put:
+      summary: Update a product
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateProduct' } }
+      responses: { '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Product' } } } }, '404': { description: Not found }, '409': { description: Conflict } }
+  /organizations/{organizationId}/products/{productId}/skus/{skuId}:
+    parameters:
+      - { $ref: '#/components/parameters/OrganizationId' }
+      - { $ref: '#/components/parameters/ProductId' }
+      - name: skuId
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      summary: Update a SKU
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateSKU' } }
+      responses: { '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/SKU' } } } }, '404': { description: Not found }, '409': { description: Conflict } }
   /organizations/{organizationId}/warehouses:
     parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
     get:
@@ -161,6 +189,21 @@ paths:
         content:
           application/json: { schema: { $ref: '#/components/schemas/CreateWarehouse' } }
       responses: { '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Warehouse' } } } }, '409': { description: Conflict } }
+  /organizations/{organizationId}/warehouses/{warehouseId}:
+    parameters:
+      - { $ref: '#/components/parameters/OrganizationId' }
+      - name: warehouseId
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      summary: Update a warehouse
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateWarehouse' } }
+      responses: { '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Warehouse' } } } }, '404': { description: Not found }, '409': { description: Conflict } }
   /organizations/{organizationId}/stocks:
     get:
       summary: List stock balances
