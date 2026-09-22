@@ -51,6 +51,21 @@ func (s *Service) CreateOrganization(in CreateOrganizationInput) (Organization, 
 	}
 	return v, s.store.CreateOrganization(v)
 }
+func (s *Service) GetOrganization(id string) (Organization, error) {
+	return s.store.GetOrganization(id)
+}
+func (s *Service) UpdateOrganization(id, name string) (Organization, error) {
+	v, err := s.store.GetOrganization(id)
+	if err != nil {
+		return Organization{}, err
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Organization{}, ErrInvalidInput
+	}
+	v.Name = name
+	return v, s.store.UpdateOrganization(v)
+}
 func (s *Service) CreateRole(orgID string, in CreateRoleInput) (Role, error) {
 	if _, err := s.store.GetOrganization(orgID); err != nil {
 		return Role{}, err

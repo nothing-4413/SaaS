@@ -56,6 +56,14 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.authPublic.ServeHTTP(w, r)
 		return
 	}
+	if len(parts) == 2 && parts[0] == "organizations" {
+		if r.Method == http.MethodGet {
+			h.userRead.ServeHTTP(w, r)
+		} else {
+			h.userWrite.ServeHTTP(w, r)
+		}
+		return
+	}
 	if len(parts) >= 3 && parts[0] == "organizations" && parts[2] == "users" {
 		if r.Method == http.MethodGet {
 			h.userRead.ServeHTTP(w, r)

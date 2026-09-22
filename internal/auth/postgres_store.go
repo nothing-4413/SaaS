@@ -56,6 +56,16 @@ func (s *PostgresStore) GetOrganization(id string) (Organization, error) {
 	}
 	return v, e
 }
+func (s *PostgresStore) UpdateOrganization(v Organization) error {
+	r, e := s.db.ExecContext(sqlctx.Context(), `UPDATE organizations SET name=$1 WHERE id=$2`, v.Name, v.ID)
+	if e != nil {
+		return pgError(e)
+	}
+	if n, _ := r.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
 func (s *PostgresStore) CreateRole(v Role) error {
 	b, e := json.Marshal(v.Permissions)
 	if e != nil {

@@ -11,6 +11,8 @@ go run ./cmd/api
 ## API（第一阶段）
 
 - `POST /organizations` 创建组织和首位所有者：`{"name":"Acme","owner_email":"owner@example.com","owner_name":"Owner","owner_password":"password123"}`
+- `GET /organizations/{id}` 查询组织资料
+- `PUT /organizations/{id}` 更新组织名称
 - `POST /organizations/{id}/roles` 创建角色
 - `GET /organizations/{id}/roles` 查询角色
 - `POST /organizations/{id}/users` 创建用户（角色必须属于同一组织）

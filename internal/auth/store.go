@@ -14,6 +14,7 @@ var (
 type Store interface {
 	CreateOrganization(Organization) error
 	GetOrganization(string) (Organization, error)
+	UpdateOrganization(Organization) error
 	CreateRole(Role) error
 	ListRoles(string) []Role
 	GetRole(string) (Role, error)
@@ -96,6 +97,17 @@ func (s *MemoryStore) GetOrganization(id string) (Organization, error) {
 		return Organization{}, ErrNotFound
 	}
 	return v, nil
+}
+func (s *MemoryStore) UpdateOrganization(v Organization) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, ok := s.organizations[v.ID]
+	if !ok {
+		return ErrNotFound
+	}
+	v.CreatedAt = old.CreatedAt
+	s.organizations[v.ID] = v
+	return nil
 }
 func (s *MemoryStore) CreateRole(v Role) error {
 	s.mu.Lock()

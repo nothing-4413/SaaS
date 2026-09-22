@@ -40,6 +40,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) >= 2 && parts[0] == "organizations" {
 		orgID := parts[1]
+		if len(parts) == 2 && r.Method == http.MethodGet {
+			h.getOrganization(w, orgID)
+			return
+		}
+		if len(parts) == 2 && r.Method == http.MethodPut {
+			h.updateOrganization(w, r, orgID)
+			return
+		}
 		if len(parts) == 4 && parts[2] == "sessions" && parts[3] == "password-reset" {
 			if r.Method == http.MethodPost {
 				h.requestPasswordReset(w, r, orgID)
@@ -92,6 +100,28 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.NotFound(w, r)
+}
+func (h *Handler) getOrganization(w http.ResponseWriter, id string) {
+	v, err := h.service.GetOrganization(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
+}
+func (h *Handler) updateOrganization(w http.ResponseWriter, r *http.Request, id string) {
+	var in struct {
+		Name string `json:"name"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	v, err := h.service.UpdateOrganization(id, in.Name)
+	if err != nil {
+		writeError(w, statusFor(err), err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, v)
 }
 
 func (h *Handler) requestPasswordReset(w http.ResponseWriter, r *http.Request, orgID string) {
