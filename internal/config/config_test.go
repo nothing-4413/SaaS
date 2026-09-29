@@ -22,3 +22,14 @@ func TestValidateAPIAcceptsStrongSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestLoadIncludesMailAndPublicURLConfiguration(t *testing.T) {
+	t.Setenv("SMTP_HOST", "smtp.example.com")
+	t.Setenv("SMTP_PORT", "587")
+	t.Setenv("SMTP_FROM", "no-reply@example.com")
+	t.Setenv("APP_PUBLIC_URL", "https://app.example.com/")
+	c := Load()
+	if c.SMTPHost != "smtp.example.com" || c.SMTPPort != "587" || c.SMTPFrom != "no-reply@example.com" || c.AppPublicURL != "https://app.example.com" {
+		t.Fatalf("unexpected notification config: %+v", c)
+	}
+}

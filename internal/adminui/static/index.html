@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <title>StockPilot | Inventory Operations</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main id="auth-view" class="auth-shell">
+    <section class="auth-copy">
+      <div class="brand">StockPilot</div>
+      <h1>Inventory decisions, kept in motion.</h1>
+      <p>One workspace for catalog, stock, order fulfillment, and low-stock signals.</p>
+      <div class="process"><span>Receive</span><i></i><span>Reserve</span><i></i><span>Fulfill</span><i></i><span>Measure</span></div>
+    </section>
+    <section class="auth-panel">
+      <div class="panel-header"><span class="eyebrow">OPERATIONS CONSOLE</span><h2 id="auth-title">Sign in</h2><p id="auth-help">Use your organization ID and workspace credentials.</p></div>
+      <form id="login-form" class="stack">
+        <label>Organization ID<input name="organization_id" required autocomplete="organization"></label>
+        <label>Email<input name="email" type="email" required autocomplete="email"></label>
+        <label>Password<input name="password" type="password" required minlength="8" autocomplete="current-password"></label>
+        <button type="submit">Open workspace <span>→</span></button>
+      </form>
+      <form id="setup-form" class="stack hidden">
+        <label>Organization name<input name="name" required></label>
+        <label>Owner name<input name="owner_name" required autocomplete="name"></label>
+        <label>Owner email<input name="owner_email" type="email" required autocomplete="email"></label>
+        <label>New password<input name="owner_password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <button type="submit">Create workspace <span>→</span></button>
+      </form>
+      <form id="reset-form" class="stack hidden">
+        <label>New password<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label>Confirm password<input name="confirm_password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <button type="submit">Set new password <span>→</span></button>
+      </form>
+      <form id="forgot-form" class="stack hidden">
+        <label>Organization ID<input name="organization_id" required></label>
+        <label>Email<input name="email" type="email" required autocomplete="email"></label>
+        <button type="submit">Send reset email <span>→</span></button>
+      </form>
+      <p id="auth-message" class="message" aria-live="polite"></p>
+      <button id="switch-auth" class="text-button" type="button">Create a new workspace</button>
+      <button id="forgot-password" class="text-button" type="button">Forgot password</button>
+    </section>
+  </main>
+
+  <div id="app-view" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand">StockPilot</div>
+      <nav>
+        <button class="nav-item active" data-view="overview">Overview</button>
+        <button class="nav-item" data-view="inventory">Inventory</button>
+        <button class="nav-item" data-view="orders">Orders</button>
+        <button class="nav-item" data-view="catalog">Catalog</button>
+      </nav>
+      <div class="side-footer"><span id="org-label">Workspace</span><button id="logout" class="text-button">Sign out</button></div>
+    </aside>
+    <section class="workspace">
+      <header class="topbar"><div><span class="eyebrow" id="view-kicker">LIVE OPERATIONS</span><h1 id="view-title">Business overview</h1></div><div class="top-actions"><span id="sync-time">Not synced</span><button id="refresh" class="icon-button" title="Refresh workspace data" aria-label="Refresh workspace data">↻</button></div></header>
+      <div id="app-message" class="message" aria-live="polite"></div>
+
+      <section id="overview" class="view">
+        <div class="metric-grid">
+          <article class="metric-card"><span>Confirmed revenue</span><strong id="metric-revenue">$0.00</strong><small>Confirmed through completed orders</small></article>
+          <article class="metric-card"><span>Open orders</span><strong id="metric-open-orders">0</strong><small>Pending, confirmed, paid, or shipped</small></article>
+          <article class="metric-card"><span>Available units</span><strong id="metric-available">0</strong><small>Across all warehouse locations</small></article>
+          <article class="metric-card alert-card"><span>Low-stock SKUs</span><strong id="metric-low-stock">0</strong><small id="alert-threshold">Threshold: 0 units</small></article>
+        </div>
+        <div class="content-grid two-col">
+          <section class="surface"><div class="surface-title"><h2>Order flow</h2><span>Current workload</span></div><div id="order-flow" class="flow-grid"></div></section>
+          <section class="surface"><div class="surface-title"><h2>Low-stock policy</h2><span>Automated signal</span></div><form id="alert-form" class="inline-form"><label>Threshold<input name="threshold" type="number" min="0" required></label><label class="toggle"><input name="enabled" type="checkbox"><span>Enabled</span></label><button type="submit">Save policy</button></form><p class="muted">The Worker checks enabled rules and emits deduplicated stock events.</p></section>
+        </div>
+        <section class="surface"><div class="surface-title"><h2>Recent orders</h2><button class="link-button" data-view-target="orders">See all orders</button></div><div id="recent-orders" class="table-wrap"></div></section>
+      </section>
+
+      <section id="inventory" class="view hidden">
+        <div class="content-grid two-col">
+          <section class="surface"><div class="surface-title"><h2>Stock balance</h2><button id="download-stock" class="link-button">Download CSV</button></div><div id="stock-table" class="table-wrap"></div></section>
+          <section class="surface form-surface"><div class="surface-title"><h2>Receive stock</h2><span>Idempotent</span></div><form id="receive-form" class="stack compact"><label>Warehouse<select name="warehouse_id" required></select></label><label>SKU<select name="sku_id" required></select></label><label>Quantity<input name="quantity" type="number" min="1" required></label><label>Reference key<input name="idempotency_key" required placeholder="receipt-2026-001"></label><button type="submit">Receive inventory</button></form></section>
+        </div>
+      </section>
+
+      <section id="orders" class="view hidden">
+        <div class="content-grid two-col">
+          <section class="surface"><div class="surface-title"><h2>Order queue</h2><span id="order-count"></span></div><div id="orders-table" class="table-wrap"></div></section>
+          <section class="surface form-surface"><div class="surface-title"><h2>Create order</h2><span>Reserves stock</span></div><form id="order-form" class="stack compact"><label>Warehouse<select name="warehouse_id" required></select></label><label>SKU<select name="sku_id" required></select></label><label>Quantity<input name="quantity" type="number" min="1" required></label><label>Order key<input name="idempotency_key" required placeholder="web-10001"></label><button type="submit">Create and reserve</button></form></section>
+        </div>
+      </section>
+
+      <section id="catalog" class="view hidden">
+        <div class="content-grid two-col">
+          <section class="surface form-surface"><div class="surface-title"><h2>New warehouse</h2><span>Storage location</span></div><form id="warehouse-form" class="stack compact"><label>Name<input name="name" required></label><label>Address<input name="address"></label><button type="submit">Add warehouse</button></form></section>
+          <section class="surface form-surface"><div class="surface-title"><h2>New product</h2><span>Catalog</span></div><form id="product-form" class="stack compact"><label>Name<input name="name" required></label><label>Description<input name="description"></label><button type="submit">Add product</button></form></section>
+        </div>
+        <section class="surface"><div class="surface-title"><h2>Catalog items</h2><button id="open-sku-form" class="link-button">Add SKU</button></div><div id="catalog-table" class="table-wrap"></div></section>
+        <section id="sku-surface" class="surface form-surface hidden"><div class="surface-title"><h2>New SKU</h2><button id="close-sku-form" class="icon-button" type="button" title="Close SKU form" aria-label="Close SKU form">×</button></div><form id="sku-form" class="inline-form"><label>Product<select name="product_id" required></select></label><label>Code<input name="code" required></label><label>Name<input name="name" required></label><label>Price<input name="price_cents" type="number" min="0" required></label><button type="submit">Create SKU</button></form></section>
+      </section>
+    </section>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

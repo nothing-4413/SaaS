@@ -73,23 +73,27 @@ go run ./cmd/api
 
 ## 权限中间件与 API 文档
 
-除组织创建、登录和健康检查外，业务 API 均要求 Bearer Token。运行时按 `user:read`、`user:write`、`role:manage`、`product:manage`、`inventory:manage`、`order:manage` 和 `report:read` 权限保护对应路由，并拒绝令牌租户与 URL 租户不一致的请求。
+除组织创建、登录、密码重置、健康检查和管理台静态资源外，业务 API 均要求 Bearer Token。运行时按 `user:read/write`、`role:read/manage`、`product:read/write`、`inventory:read/write/import`、`order:read/write/approve`、`report:read/export`、`audit:read` 和 `webhook:manage` 权限保护对应路由，并拒绝令牌租户与 URL 租户不一致的请求。
 
 完整接口草案见 [docs/openapi.yaml](docs/openapi.yaml)。
 
 ## 本地开发
 
-启动依赖：
-
-```bash
-docker compose up -d
-go run ./cmd/api
-```
-
-也可以直接启动完整容器栈：
+完整容器栈（API、Worker、PostgreSQL、迁移和 Mailpit）：
 
 ```bash
 docker compose up --build
+```
+
+启动后访问 `http://localhost:8080/` 可使用内嵌管理台完成登录、库存、订单和目录操作。完整的面试演示流程见 [docs/demo-runbook.md](docs/demo-runbook.md)。
+
+代码验证：
+
+```bash
+go test ./...
+go vet ./...
+go build ./...
+bash scripts/smoke.sh
 ```
 
 API 容器监听 `8080`，PostgreSQL 通过健康检查且数据库迁移成功后才会启动 API。

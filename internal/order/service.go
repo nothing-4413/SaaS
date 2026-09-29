@@ -32,7 +32,9 @@ func (s *Service) SetEventService(events *outbox.Service) { s.events = events }
 // quantity, while the current catalog price is copied into the order.
 func (s *Service) SetCatalog(c interface {
 	GetSKU(string) (product.SKU, error)
-}) { s.catalog = c }
+}) {
+	s.catalog = c
+}
 func (s *Service) emit(v Order, eventType string) error {
 	if s.events == nil {
 		return nil

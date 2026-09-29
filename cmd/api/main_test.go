@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nothing-4413/saas/internal/adminui"
 	"github.com/nothing-4413/saas/internal/auth"
 	"github.com/nothing-4413/saas/internal/inventory"
 	"github.com/nothing-4413/saas/internal/order"
@@ -18,7 +19,18 @@ func testHandler() http.Handler {
 	inv := inventory.NewService(inventory.NewMemoryStore())
 	orders := order.NewService(order.NewMemoryStore(), inv)
 	authHandler := auth.NewHandler(authService)
-	return apiHandler{authPublic: authHandler, userRead: authHandler, userWrite: authHandler, roleRead: authHandler, roleManage: authHandler, product: product.NewHandler(product.NewService(product.NewMemoryStore())), inventory: inventory.NewHandler(inv), order: order.NewHandler(orders), report: report.NewHandler(report.NewService(orders, inv)), readiness: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })}
+	return apiHandler{authPublic: authHandler, userRead: authHandler, userWrite: authHandler, roleRead: authHandler, roleManage: authHandler, product: product.NewHandler(product.NewService(product.NewMemoryStore())), inventory: inventory.NewHandler(inv), order: order.NewHandler(orders), report: report.NewHandler(report.NewService(orders, inv)), readiness: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) }), dashboard: adminui.Handler()}
+}
+
+func TestDashboardRoutes(t *testing.T) {
+	h := testHandler()
+	for _, path := range []string{"/", "/app.js", "/styles.css", "/reset-password"} {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if w.Code != http.StatusOK {
+			t.Fatalf("path=%s status=%d", path, w.Code)
+		}
+	}
 }
 func TestHealthAndOrganizationRoutes(t *testing.T) {
 	h := testHandler()

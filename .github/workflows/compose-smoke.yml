@@ -1,0 +1,22 @@
+name: compose-smoke
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start application stack
+        run: docker compose up --build -d --wait
+      - name: Run business smoke flow
+        run: bash scripts/smoke.sh
+      - name: Print service logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop application stack
+        if: always()
+        run: docker compose down -v

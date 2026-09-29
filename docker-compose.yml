@@ -5,7 +5,7 @@ services:
       HTTP_ADDR: :8080
       APP_ENV: development
       DATABASE_URL: postgres://saas:saas@postgres:5432/saas?sslmode=disable
-      AUTH_TOKEN_SECRET: development-only-change-me
+      AUTH_TOKEN_SECRET: development-only-change-this-secret-1234
       AUTH_TOKEN_PREVIOUS_SECRETS: ""
     ports: ["8080:8080"]
     depends_on:
@@ -35,6 +35,10 @@ services:
       OUTBOX_BATCH_SIZE: 100
       STOCK_ALERT_INTERVAL_SECONDS: 60
       WORKER_HEALTH_ADDR: :9090
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM: no-reply@stockpilot.local
+      APP_PUBLIC_URL: http://localhost:8080
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/healthz"]
       interval: 10s
@@ -45,6 +49,12 @@ services:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports: ["8025:8025"]
     restart: unless-stopped
   postgres:
     image: postgres:16-alpine

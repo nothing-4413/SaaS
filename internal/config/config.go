@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const defaultAuthTokenSecret = "development-only-change-me"
+const defaultAuthTokenSecret = "development-only-change-this-secret-1234"
 
 type Config struct {
 	HTTPAddr                 string
@@ -15,6 +15,12 @@ type Config struct {
 	AuthTokenSecret          string
 	AuthTokenPreviousSecrets []string
 	Environment              string
+	SMTPHost                 string
+	SMTPPort                 string
+	SMTPUsername             string
+	SMTPPassword             string
+	SMTPFrom                 string
+	AppPublicURL             string
 }
 
 func Load() Config {
@@ -24,6 +30,12 @@ func Load() Config {
 		AuthTokenSecret:          env("AUTH_TOKEN_SECRET", defaultAuthTokenSecret),
 		AuthTokenPreviousSecrets: splitSecrets(os.Getenv("AUTH_TOKEN_PREVIOUS_SECRETS")),
 		Environment:              strings.ToLower(env("APP_ENV", "development")),
+		SMTPHost:                 strings.TrimSpace(os.Getenv("SMTP_HOST")),
+		SMTPPort:                 strings.TrimSpace(os.Getenv("SMTP_PORT")),
+		SMTPUsername:             strings.TrimSpace(os.Getenv("SMTP_USERNAME")),
+		SMTPPassword:             os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:                 strings.TrimSpace(os.Getenv("SMTP_FROM")),
+		AppPublicURL:             strings.TrimRight(strings.TrimSpace(env("APP_PUBLIC_URL", "http://localhost:8080")), "/"),
 	}
 }
 

@@ -118,6 +118,50 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/CreateOrder' }
       responses: { '201': { description: Created }, '409': { description: Insufficient stock or conflict } }
+  /organizations/{organizationId}/users:
+    parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+    get:
+      summary: List users in the organization
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Query' }]
+      responses: { '200': { description: Paginated users } }
+    post:
+      summary: Create a user
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name, password]
+              properties:
+                email: { type: string, format: email }
+                name: { type: string }
+                password: { type: string, format: password, minLength: 8 }
+                role_ids: { type: array, items: { type: string } }
+      responses: { '201': { description: Created user }, '409': { description: Conflict } }
+  /organizations/{organizationId}/roles:
+    parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
+    get:
+      summary: List roles in the organization
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/PageSize' }, { $ref: '#/components/parameters/Query' }]
+      responses: { '200': { description: Paginated roles } }
+    post:
+      summary: Create a role
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                permissions: { type: array, items: { type: string } }
+      responses: { '201': { description: Created role }, '409': { description: Conflict } }
   /organizations/{organizationId}/products:
     parameters: [{ $ref: '#/components/parameters/OrganizationId' }]
     get:

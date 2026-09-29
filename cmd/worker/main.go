@@ -29,6 +29,10 @@ func main() {
 	events := outbox.NewService(outbox.NewPostgresStore(db))
 	dispatcher := notification.NewService(events)
 	webhooks := webhook.NewSubscriptionService(webhook.NewPostgresStore(db), webhook.Sender{})
+	email := notification.EmailSender{
+		Host: cfg.SMTPHost, Port: cfg.SMTPPort, Username: cfg.SMTPUsername, Password: cfg.SMTPPassword,
+		From: cfg.SMTPFrom, PublicURL: cfg.AppPublicURL,
+	}
 	alertRules := alert.NewRuleService(alert.NewPostgresStore(db))
 	alertScanner := alert.NewService(inventory.NewService(inventory.NewPostgresStore(db)), events)
 	metrics := workerMetrics.NewMetrics()
@@ -62,11 +66,16 @@ func main() {
 	defer alertTicker.Stop()
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
-	log.Printf("outbox worker started interval=%s batch_size=%d", interval, batchSize)
+	log.Printf("outbox worker started interval=%s batch_size=%d smtp_enabled=%t", interval, batchSize, email.Enabled())
 	for {
 		select {
 		case <-ticker.C:
-			processed, failed := dispatcher.DispatchOnce(batchSize, webhooks.Deliver)
+			processed, failed := dispatcher.DispatchOnce(batchSize, func(event outbox.Event) error {
+				if event.Type == "auth.password_reset_requested" {
+					return email.Deliver(event)
+				}
+				return webhooks.Deliver(event)
+			})
 			metrics.AddDispatch(processed, failed)
 			if processed > 0 || failed > 0 {
 				log.Printf("outbox batch processed=%d failed=%d", processed, failed)

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nothing-4413/saas/internal/adminui"
 	"github.com/nothing-4413/saas/internal/alert"
 	"github.com/nothing-4413/saas/internal/audit"
 	"github.com/nothing-4413/saas/internal/auth"
@@ -31,10 +32,15 @@ type apiHandler struct {
 	authPublic, userRead, userWrite, roleRead, roleManage                      http.Handler
 	product, inventory, order, report, export, importer, audit, webhook, alert http.Handler
 	metrics, readiness                                                         http.Handler
+	dashboard                                                                  http.Handler
 }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
+	if h.dashboard != nil && (path == "" || path == "reset-password" || path == "app.js" || path == "styles.css") && r.Method == http.MethodGet {
+		h.dashboard.ServeHTTP(w, r)
+		return
+	}
 	if path == "healthz" && r.Method == http.MethodGet {
 		httpx.HealthHandler(w, r)
 		return
@@ -192,6 +198,7 @@ func main() {
 		alert:     protectResolved(methodPermission(auth.PermissionInventoryRead, auth.PermissionInventoryWrite), alertHandler),
 		metrics:   metrics,
 		readiness: httpx.ReadinessHandler(db),
+		dashboard: adminui.Handler(),
 	}
 	limiter := httpx.NewRateLimiter(120, time.Minute)
 	handler := httpx.Chain(httpx.SecurityHeaders(httpx.MaxBodyBytes(2<<20, limiter.Middleware(metrics.Wrap(base)))))
