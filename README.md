@@ -2,6 +2,33 @@
 
 项目已完成模块化单体第一阶段和主要第二阶段能力；测试保留内存 Store，生产 API/Worker 使用 PostgreSQL 持久化。
 
+## 模块结构
+
+项目采用模块化单体结构，各模块职责与 API 详见各自目录下的 README：
+
+- [`cmd/api`](cmd/api/README.md) — HTTP API 服务入口，路由分发、中间件链与优雅退出
+- [`cmd/worker`](cmd/worker/README.md) — 后台 Worker，领取 Outbox 事件、投递通知/Webhook 并执行库存预警扫描
+- [`internal/auth`](internal/auth/README.md) — 多租户、用户、角色、权限、会话令牌与密码重置
+- [`internal/product`](internal/product/README.md) — 商品、SKU 与仓库目录
+- [`internal/inventory`](internal/inventory/README.md) — 库存变动与入库/出库单
+- [`internal/order`](internal/order/README.md) — 销售订单与状态机
+- [`internal/report`](internal/report/README.md) — 经营报表
+- [`internal/outbox`](internal/outbox/README.md) — 事务性事件队列（Outbox 模式）
+- [`internal/notification`](internal/notification/README.md) — 通知分发与 SMTP 邮件
+- [`internal/webhook`](internal/webhook/README.md) — Webhook 订阅与签名投递
+- [`internal/alert`](internal/alert/README.md) — 库存预警规则与扫描
+- [`internal/audit`](internal/audit/README.md) — 审计日志
+- [`internal/export`](internal/export/README.md) — CSV 导出
+- [`internal/importer`](internal/importer/README.md) — 库存 CSV 导入
+- [`internal/httpx`](internal/httpx/README.md) — HTTP 中间件、健康检查、指标与安全
+- [`internal/config`](internal/config/README.md) — 环境配置
+- [`internal/adminui`](internal/adminui/README.md) — 内嵌管理台
+- [`internal/worker`](internal/worker/README.md) — Worker 指标
+- [`internal/platform`](internal/platform/README.md) — 平台基础包（ID、分页、PostgreSQL、事务）
+- [`migrations`](migrations/README.md) — PostgreSQL 迁移
+- [`scripts`](scripts/README.md) — 冒烟测试脚本
+- [`docs`](docs/README.md) — 架构与演示文档
+
 ## 运行
 
 ```bash
