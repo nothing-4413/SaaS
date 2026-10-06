@@ -1,0 +1,35 @@
+# 环境与密钥（模板文件必须提交）
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.production.example
+
+# 本地构建产物（Dockerfile 在镜像内输出 saas-api / saas-worker）
+/bin/
+/out/
+/saas-api
+/saas-api.exe
+/saas-worker
+/saas-worker.exe
+/api
+/api.exe
+/worker
+/worker.exe
+
+# Go 测试与覆盖率
+*.test
+*.out
+coverage.*
+
+# 运行时数据
+/data/
+*.log
+*.pid
+
+# 编辑器与系统
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
