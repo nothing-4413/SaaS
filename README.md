@@ -16,6 +16,12 @@
 
 上图与 [docs/admin-orders.png](docs/admin-orders.png) 是真实运行的管理台（登录后由无头浏览器截取，数据来自实际 API 调用）。
 
+**v1 的范围（Definition of Done）**
+
+- 包含：多租户与权限、商品/SKU/仓库、库存预占与扣减、订单状态机、报表、CSV 导入导出、Outbox + Worker、Webhook 签名投递、库存预警、审计日志、内嵌管理台
+- 明确不做（留到 v1 之后）：多实例限流的全局配额、Kubernetes 部署、计费、SSO、管理台的浏览器端自动化测试
+- 完成标准：三类 CI 检查全绿、`scripts/smoke.sh` 端到端通过、未覆盖的部分如实列在下面
+
 **已知缺口**
 
 - 单元测试全部针对内存 Store；SQL 层只由上表的集成测试覆盖，尚无性能/压测与长稳测试
@@ -23,6 +29,15 @@
 - 限流是单进程内存实现，未验证多实例部署下的全局配额
 
 **不用 Docker 的本地路径**（本机 Docker/WSL 不可用时）
+
+先准备一份解压好的 PostgreSQL Windows 二进制包（例如 [EDB binaries](https://www.enterprisedb.com/download-postgresql-binaries)），然后：
+
+```powershell
+powershell -File scripts\local-postgres.ps1 -PgRoot D:\pgtmp\pgsql -DataDir D:\pgdata -Action start
+powershell -File scripts\local-postgres.ps1 -PgRoot D:\pgtmp\pgsql -DataDir D:\pgdata -Action migrate
+```
+
+手工等价步骤如下：
 
 ```bash
 # 1. 建库，并按文件名顺序执行 migrations/*.up.sql（000001 … 000012）
@@ -35,10 +50,12 @@ DATABASE_URL='postgres://postgres@localhost:5432/saas?sslmode=disable' \
 # 3. 浏览器打开 http://localhost:8080/
 #    若 127.0.0.1:8080 已被其他程序占用（例如 Steam），请改用 localhost 或调整 HTTP_ADDR
 
-# 4. 集成测试
-TEST_DATABASE_URL='postgres://postgres@localhost:5432/saas?sslmode=disable' \
+# 4. 集成测试（用一个没有其他待处理 Outbox 事件的专用库；CI 每次都会新建）
+TEST_DATABASE_URL='postgres://postgres@localhost:5432/saas_test?sslmode=disable' \
   go test -tags=integration ./...
 ```
+
+**Docker 起不来时先查 WSL**：如果 `wsl -l -v` 超过几秒不返回，Docker Desktop 的日志会出现 `DockerDesktop/Wsl/CommandTimedOut` 且 Linux 引擎无法启动。用管理员 PowerShell 执行 `Restart-Service WSLService -Force`（或重启机器），确认 `wsl -l -v` 秒回后再启动 Docker Desktop。
 
 ## 模块结构
 
