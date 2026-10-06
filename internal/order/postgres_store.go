@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/nothing-4413/saas/internal/inventory"
 	"github.com/nothing-4413/saas/internal/platform/idgen"
 	"github.com/nothing-4413/saas/internal/platform/sqlctx"
 )
@@ -70,7 +71,7 @@ func (s *PostgresStore) CreateAtomic(v Order) (Order, error) {
 			return Order{}, err
 		}
 		if onHand-reserved < line.Quantity {
-			return Order{}, errors.New("insufficient available stock")
+			return Order{}, inventory.ErrInsufficient
 		}
 		reserved += line.Quantity
 		if _, err = tx.ExecContext(ctx, `UPDATE inventory_stocks SET reserved=$4,updated_at=$5 WHERE organization_id=$1 AND warehouse_id=$2 AND sku_id=$3`, v.OrganizationID, line.WarehouseID, line.SKUID, reserved, v.CreatedAt); err != nil {
@@ -145,7 +146,7 @@ func (s *PostgresStore) TransitionAtomic(org, id string, target Status, now time
 			switch target {
 			case StatusConfirmed:
 				if reserved < line.Quantity {
-					return Order{}, errors.New("insufficient reserved stock")
+					return Order{}, fmt.Errorf("insufficient reserved stock: %w", inventory.ErrInsufficient)
 				}
 				onHand -= line.Quantity
 				reserved -= line.Quantity
