@@ -2,6 +2,44 @@
 
 项目已完成模块化单体第一阶段和主要第二阶段能力；测试保留内存 Store，生产 API/Worker 使用 PostgreSQL 持久化。
 
+![管理台总览](docs/admin-overview.png)
+
+## 状态
+
+每次提交都会在 CI 上跑三类检查：
+
+| 检查 | 覆盖内容 |
+| --- | --- |
+| `test` | `gofmt`、`go test ./...`、`go vet`、`go test -race ./...`、`go build` |
+| `integration` | 真实 PostgreSQL 16 上执行 `go test -tags=integration ./...`：并发扣减/预占不超卖、幂等键重放与冲突、出入库单原子性与重放、Outbox 并发领取与租约过期 |
+| `compose` | `docker compose up --build` 后执行 `scripts/smoke.sh` 的业务端到端冒烟 |
+
+上图与 [docs/admin-orders.png](docs/admin-orders.png) 是真实运行的管理台（登录后由无头浏览器截取，数据来自实际 API 调用）。
+
+**已知缺口**
+
+- 单元测试全部针对内存 Store；SQL 层只由上表的集成测试覆盖，尚无性能/压测与长稳测试
+- 管理台没有浏览器端自动化测试，接口层由 `scripts/smoke.sh` 覆盖
+- 限流是单进程内存实现，未验证多实例部署下的全局配额
+
+**不用 Docker 的本地路径**（本机 Docker/WSL 不可用时）
+
+```bash
+# 1. 建库，并按文件名顺序执行 migrations/*.up.sql（000001 … 000012）
+psql -U postgres -d saas -f migrations/000001_initial_schema.up.sql
+
+# 2. 启动 API（AUTH_TOKEN_SECRET 至少 32 字符）
+DATABASE_URL='postgres://postgres@localhost:5432/saas?sslmode=disable' \
+  AUTH_TOKEN_SECRET='<32 字符以上随机串>' go run ./cmd/api
+
+# 3. 浏览器打开 http://localhost:8080/
+#    若 127.0.0.1:8080 已被其他程序占用（例如 Steam），请改用 localhost 或调整 HTTP_ADDR
+
+# 4. 集成测试
+TEST_DATABASE_URL='postgres://postgres@localhost:5432/saas?sslmode=disable' \
+  go test -tags=integration ./...
+```
+
 ## 模块结构
 
 项目采用模块化单体结构，各模块职责与 API 详见各自目录下的 README：
