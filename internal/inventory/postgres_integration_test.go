@@ -312,6 +312,22 @@ func outboxEvent(t *testing.T, org string, now time.Time) outbox.Event {
 	}
 }
 
+// claimOwn claims one batch and reports an actionable error when Claim returns
+// work from another organization. Claim is deliberately global (the worker
+// drains every tenant), so this suite must run against a database that has no
+// other pending outbox events - CI creates a dedicated one.
+func claimOwn(t *testing.T, events *outbox.PostgresStore, org string, limit int, now time.Time) []outbox.Event {
+	t.Helper()
+	batch := events.Claim(limit, now)
+	for _, event := range batch {
+		if event.OrganizationID != org {
+			t.Errorf("claimed event %s belonging to organization %s: point TEST_DATABASE_URL at a dedicated database with no other pending outbox events", event.ID, event.OrganizationID)
+			return nil
+		}
+	}
+	return batch
+}
+
 // TestOutboxClaimHandsEachEventToExactlyOneConsumer exercises the worker's
 // FOR UPDATE SKIP LOCKED claim query (internal/outbox/postgres_store.go:47):
 // with as many concurrent consumers as there are events, no event may be handed
@@ -336,7 +352,18 @@ func TestOutboxClaimHandsEachEventToExactlyOneConsumer(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			claimed[i] = events.Claim(1, now)
+			// SELECT ... FOR UPDATE SKIP LOCKED can hand a consumer an empty batch
+			// while other consumers still hold the remaining rows, so each consumer
+			// keeps asking until it owns exactly one event. The invariant under test
+			// is that no event is ever handed to two consumers, not that a single
+			// round drains every event.
+			for attempt := 0; attempt < 100; attempt++ {
+				if batch := claimOwn(t, events, fx.org, 1, now); len(batch) > 0 {
+					claimed[i] = batch
+					return
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
 		}(i)
 	}
 	wg.Wait()
@@ -384,11 +411,11 @@ func TestOutboxDedupAndLeaseExpiry(t *testing.T) {
 		t.Fatalf("duplicate dedup key: err=%v want ErrConflict", err)
 	}
 
-	first := events.Claim(1, now)
+	first := claimOwn(t, events, fx.org, 1, now)
 	if len(first) != 1 || first[0].ID != event.ID {
 		t.Fatalf("claim=%v want the pending event %s", first, event.ID)
 	}
-	if held := events.Claim(1, now); len(held) != 0 {
+	if held := claimOwn(t, events, fx.org, 1, now); len(held) != 0 {
 		t.Fatalf("second claim returned %d events: the lease did not hold", len(held))
 	}
 	if err := events.MarkPublished(event.ID, now); err != nil {
@@ -404,11 +431,11 @@ func TestOutboxDedupAndLeaseExpiry(t *testing.T) {
 	if err := events.Enqueue(stale); err != nil {
 		t.Fatalf("enqueue stale: %v", err)
 	}
-	if claimedNow := events.Claim(1, now); len(claimedNow) != 1 || claimedNow[0].ID != stale.ID {
+	if claimedNow := claimOwn(t, events, fx.org, 1, now); len(claimedNow) != 1 || claimedNow[0].ID != stale.ID {
 		t.Fatalf("first claim of stale=%v want %s", claimedNow, stale.ID)
 	}
 	later := now.Add(6 * time.Minute)
-	reclaimed := events.Claim(1, later)
+	reclaimed := claimOwn(t, events, fx.org, 1, later)
 	if len(reclaimed) != 1 || reclaimed[0].ID != stale.ID {
 		t.Fatalf("reclaim after lease expiry=%v want %s", reclaimed, stale.ID)
 	}
