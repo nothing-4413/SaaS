@@ -91,7 +91,7 @@ switch ($Action) {
         }
         Write-Host ''
         Write-Host 'Next: start the API with'
-        Write-Host "  `$env:DATABASE_URL='postgres://$SuperUser@localhost:$Port/$Database?sslmode=disable'"
+        Write-Host "  `$env:DATABASE_URL='postgres://$SuperUser@localhost:$Port/${Database}?sslmode=disable'"
         Write-Host "  `$env:AUTH_TOKEN_SECRET='<32+ character random string>'"
         Write-Host '  go run ./cmd/api'
     }

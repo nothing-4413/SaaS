@@ -25,16 +25,20 @@
 **已知缺口**
 
 - 单元测试全部针对内存 Store；SQL 层只由上表的集成测试覆盖，尚无性能/压测与长稳测试
-- 管理台没有浏览器端自动化测试，接口层由 `scripts/smoke.sh` 覆盖
+- 管理台没有浏览器端自动化测试，接口层由 `scripts/smoke.sh`（Linux/CI）与 `scripts/smoke.ps1`（Windows 本机）覆盖
 - 限流是单进程内存实现，未验证多实例部署下的全局配额
 
 **不用 Docker 的本地路径**（本机 Docker/WSL 不可用时）
 
-先准备一份解压好的 PostgreSQL Windows 二进制包（例如 [EDB binaries](https://www.enterprisedb.com/download-postgresql-binaries)），然后：
+先准备一份解压好的 PostgreSQL Windows 二进制包（例如 [EDB binaries](https://www.enterprisedb.com/download-postgresql-binaries)），然后一条命令拉起本机栈：
 
 ```powershell
-powershell -File scripts\local-postgres.ps1 -PgRoot D:\pgtmp\pgsql -DataDir D:\pgdata -Action start
-powershell -File scripts\local-postgres.ps1 -PgRoot D:\pgtmp\pgsql -DataDir D:\pgdata -Action migrate
+# 便携 PostgreSQL + 迁移 + API（Ctrl+C 停 API；-Action down 停数据库）
+powershell -File scripts\dev.ps1 -PgRoot <解压目录>\pgsql -DataDir <数据目录>
+# 只准备数据库、不启动 API
+powershell -File scripts\dev.ps1 -PgRoot <解压目录>\pgsql -DataDir <数据目录> -Action check
+# 端到端业务冒烟（PowerShell 版：不需要 bash/jq，Mailpit 不可达时只跳过邮件断言）
+powershell -File scripts\smoke.ps1
 ```
 
 手工等价步骤如下：
