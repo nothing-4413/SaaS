@@ -3,6 +3,7 @@ package httpx
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -13,6 +14,16 @@ func TestSecurityHeaders(t *testing.T) {
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
 	if w.Header().Get("X-Frame-Options") != "DENY" {
 		t.Fatal("missing security header")
+	}
+	csp := w.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "script-src 'self'") || !strings.Contains(csp, "style-src 'self'") {
+		t.Fatalf("same-origin console assets would be blocked: %q", csp)
+	}
+	if strings.Contains(csp, "'unsafe-inline'") || strings.Contains(csp, "'unsafe-eval'") {
+		t.Fatalf("policy must keep inline script denied: %q", csp)
+	}
+	if !strings.HasPrefix(csp, "default-src 'none'") {
+		t.Fatalf("policy must stay deny-by-default: %q", csp)
 	}
 }
 func TestRateLimiter(t *testing.T) {

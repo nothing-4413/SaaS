@@ -11,7 +11,10 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'none'")
+		// The embedded console is served from the same origin, so it needs to load
+		// its own /app.js and /styles.css. Everything else stays denied: no inline
+		// script, no third-party origin, no framing.
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }
