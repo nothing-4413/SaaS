@@ -22,7 +22,7 @@ func Handler() http.Handler {
 		if r.URL.Path == "/" || r.URL.Path == "/reset-password" || name == "." || name == "/" {
 			name = "index.html"
 		}
-		if name != "index.html" && name != "app.js" && name != "styles.css" {
+		if name != "index.html" && name != "app.js" && name != "styles.css" && name != "favicon.svg" {
 			http.NotFound(w, r)
 			return
 		}
@@ -41,6 +41,8 @@ func Handler() http.Handler {
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		case "app.js":
 			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		case "favicon.svg":
+			w.Header().Set("Content-Type", "image/svg+xml")
 		default:
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		}

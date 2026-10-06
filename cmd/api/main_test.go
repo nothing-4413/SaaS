@@ -24,7 +24,7 @@ func testHandler() http.Handler {
 
 func TestDashboardRoutes(t *testing.T) {
 	h := testHandler()
-	for _, path := range []string{"/", "/app.js", "/styles.css", "/reset-password"} {
+	for _, path := range []string{"/", "/app.js", "/styles.css", "/favicon.svg", "/reset-password"} {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		if w.Code != http.StatusOK {

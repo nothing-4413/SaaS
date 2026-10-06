@@ -9,7 +9,7 @@ import (
 
 func TestHandlerServesConsoleAndRejectsUnknownAssets(t *testing.T) {
 	h := Handler()
-	for _, path := range []string{"/", "/app.js", "/styles.css", "/reset-password"} {
+	for _, path := range []string{"/", "/app.js", "/styles.css", "/favicon.svg", "/reset-password"} {
 		rr := httptest.NewRecorder()
 		h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
 		if rr.Code != http.StatusOK || strings.TrimSpace(rr.Body.String()) == "" {
@@ -17,7 +17,7 @@ func TestHandlerServesConsoleAndRejectsUnknownAssets(t *testing.T) {
 		}
 	}
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/favicon.ico", nil))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/secrets.txt", nil))
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("unknown asset status=%d", rr.Code)
 	}

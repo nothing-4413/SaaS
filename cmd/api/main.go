@@ -37,7 +37,7 @@ type apiHandler struct {
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
-	if h.dashboard != nil && (path == "" || path == "reset-password" || path == "app.js" || path == "styles.css") && r.Method == http.MethodGet {
+	if h.dashboard != nil && (path == "" || path == "reset-password" || path == "app.js" || path == "styles.css" || path == "favicon.svg") && r.Method == http.MethodGet {
 		h.dashboard.ServeHTTP(w, r)
 		return
 	}
