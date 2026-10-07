@@ -69,6 +69,14 @@ TEST_DATABASE_URL='postgres://postgres@localhost:5432/saas_test?sslmode=disable'
 $env:POSTGRES_PORT='15433'; docker compose up -d --wait
 ```
 
+**停/起 Docker 引擎后容器 DNS 会失效**：容器日志里出现 `lookup postgres on 127.0.0.11:53: no such host`（或 `i/o timeout`）、api/worker 反复重启时，不是代码问题——旧容器还挂在引擎重启前的网络命名空间上。整个栈重建一次即可：
+
+```powershell
+docker compose down --remove-orphans; docker compose up -d --wait
+```
+
+**拉镜像抽风时**：Docker Desktop 4.90 不会把 `~/.docker/daemon.json` 里的 `registry-mirrors` 交给 Linux 引擎（`docker info` 的 `RegistryConfig.Mirrors` 始终是 `[]`，docker.io 走它内置的 hubproxy），所以镜像站要在 Docker Desktop 的 **Settings → Resources → Proxies** 里配代理才会生效；实在要用镜像站就显式拉，例如 `docker pull docker.m.daocloud.io/library/alpine:3.21`。
+
 ## 模块结构
 
 项目采用模块化单体结构，各模块职责与 API 详见各自目录下的 README：
