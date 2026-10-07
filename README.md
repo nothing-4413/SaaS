@@ -63,6 +63,12 @@ TEST_DATABASE_URL='postgres://postgres@localhost:5432/saas_test?sslmode=disable'
 
 **Docker 起不来时先查 WSL**：如果 `wsl -l -v` 超过几秒不返回，Docker Desktop 的日志会出现 `DockerDesktop/Wsl/CommandTimedOut` 且 Linux 引擎无法启动。用管理员 PowerShell 执行 `Restart-Service WSLService -Force`（或重启机器），确认 `wsl -l -v` 秒回后再启动 Docker Desktop。
 
+**端口被 Windows 保留时**：`netsh int ipv4 show excludedportrange protocol=tcp` 若把 `5432` 圈进了 Hyper-V 的保留段，`docker compose up` 会报 `bind: ... forbidden by its access permissions`。换一个主机端口即可（容器内的 API 仍连容器里的 5432，不受影响）：
+
+```powershell
+$env:POSTGRES_PORT='15433'; docker compose up -d --wait
+```
+
 ## 模块结构
 
 项目采用模块化单体结构，各模块职责与 API 详见各自目录下的 README：

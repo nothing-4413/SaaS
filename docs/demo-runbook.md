@@ -36,6 +36,8 @@ powershell -File scripts\smoke.ps1
 管理台 `http://localhost:8080/`；开发 Compose 的邮件进 Mailpit `http://localhost:8025/`。
 
 > 若 `127.0.0.1:8080` 已被别的程序占用（例如 Steam 的 `steamwebhelper`），请用 `localhost` 访问，或用 `scripts\dev.ps1 -HttpAddr :8090`。Docker 起不来时先查 WSL：`wsl -l -v` 若长时间不返回，用管理员 PowerShell 执行 `Restart-Service WSLService -Force`（或重启机器）。
+>
+> Windows 偶尔会把 `5432` 圈进 Hyper-V 的保留端口段（`netsh int ipv4 show excludedportrange protocol=tcp`），此时 `docker compose up` 会报端口不可用：用 `$env:POSTGRES_PORT='15433'; docker compose up -d --wait` 换一个主机端口；便携 PostgreSQL 路径则给 `scripts\dev.ps1` 加 `-Port 15434`。
 
 ## 3. 自动验收
 

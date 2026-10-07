@@ -62,7 +62,9 @@ services:
       POSTGRES_DB: saas
       POSTGRES_USER: saas
       POSTGRES_PASSWORD: saas
-    ports: ["5432:5432"]
+    # Host port is configurable: Windows sometimes reserves 5432 for Hyper-V
+    # (netsh int ipv4 show excludedportrange protocol=tcp) - set POSTGRES_PORT.
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
     volumes: ["saas-postgres:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U saas -d saas"]
